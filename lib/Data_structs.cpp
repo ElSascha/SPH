@@ -101,6 +101,7 @@ namespace Data_structs {
         double pressure;
         double mass;
         double speed_of_sound;
+        double shepard;
         Matrix3x3 correction_tensor;
     };
 }

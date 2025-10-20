@@ -69,8 +69,19 @@ Vector gradW(Vector pos_i, Vector pos_j, double h, int dim){
     return (r/r_norm)*derivW(r_norm,h,dim);
 }
 
-void consistent_shepard_correction(std::vector<Particle>& particles, double h, int dim){
+void shepard_correction(std::vector<Particle>& particles, double h, int dim){
     for(auto& pi : particles){
-        
+        double shepard_sum = 0.0;
+        for(auto& pj : particles){
+            Vector r = pi.position - pj.position;
+            double r_norm = r.norm();
+            shepard_sum += (pj.mass / pj.density) * W(r_norm, h, dim);
+        }
+        if(shepard_sum > 1e-12){
+            pi.shepard = 1.0/shepard_sum;
+        }
+        else{
+            pi.shepard = 1.0;
+        }
     }
 }
