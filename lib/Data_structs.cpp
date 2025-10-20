@@ -1,0 +1,106 @@
+#pragma once
+#include <vector>
+#include <cmath>
+
+namespace Data_structs {
+
+
+    struct Vector{
+        double x,y,z;
+        Vector(double x=0, double y=0, double z=0):x(x),y(y),z(z){}
+        Vector operator+(const Vector& v) const {
+            return Vector(x + v.x, y + v.y, z + v.z);
+        }
+        Vector operator-(const Vector& v) const {
+            return Vector(x - v.x, y - v.y, z - v.z);
+        }
+        Vector operator*(double scalar) const {
+            return Vector(x * scalar, y * scalar, z * scalar);
+        }
+        Vector operator/(double scalar) const {
+            return Vector(x / scalar, y / scalar, z / scalar);
+        }
+        double dot(const Vector& v) const {
+            return x * v.x + y * v.y + z * v.z;
+        }
+        double norm() const {
+            return std::sqrt(x * x + y * y + z * z);
+        }
+
+        Vector outer(const Vector& v) const {
+            return Vector(x * v.x, y * v.y, z * v.z);
+        }
+
+        Vector normalize() const {
+            double n = norm();
+            return n > 0 ? (*this) / n : Vector(0, 0, 0);
+        }
+        Vector cross(const Vector& v) const {
+            return Vector(
+                y * v.z - z * v.y,
+                z * v.x - x * v.z,
+                x * v.y - y * v.x
+            );
+        }
+    };
+
+    struct Matrix3x3 {
+        double m[3][3];
+        Matrix3x3() {
+            for(int i=0;i<3;++i)
+                for(int j=0;j<3;++j)
+                    m[i][j] = 0;
+        }
+        Matrix3x3 operator+(const Matrix3x3& mat) const {
+            Matrix3x3 result;
+            for(int i=0;i<3;++i)
+                for(int j=0;j<3;++j)
+                    result.m[i][j] = m[i][j] + mat.m[i][j];
+            return result;
+        }
+        Matrix3x3 operator*(double scalar) const {
+            Matrix3x3 result;
+            for(int i=0;i<3;++i)
+                for(int j=0;j<3;++j)
+                    result.m[i][j] = m[i][j] * scalar;
+            return result;
+        }
+
+        Matrix3x3 outer(const Vector& v) const {
+            Matrix3x3 result;
+            result.m[0][0] = v.x * v.x; result.m[0][1] = v.x * v.y; result.m[0][2] = v.x * v.z;
+            result.m[1][0] = v.y * v.x; result.m[1][1] = v.y * v.y; result.m[1][2] = v.y * v.z;
+            result.m[2][0] = v.z * v.x; result.m[2][1] = v.z * v.y; result.m[2][2] = v.z * v.z;
+            return result;
+        }
+
+        Matrix3x3 operator/(double scalar) const {
+            Matrix3x3 result;
+            for(int i=0;i<3;++i)
+                for(int j=0;j<3;++j)
+                    result.m[i][j] = m[i][j] / scalar;
+            return result;
+        }
+
+        Vector operator*(const Vector& v) const {
+            return Vector(
+                m[0][0]*v.x + m[0][1]*v.y + m[0][2]*v.z,
+                m[1][0]*v.x + m[1][1]*v.y + m[1][2]*v.z,
+                m[2][0]*v.x + m[2][1]*v.y + m[2][2]*v.z
+            );
+        }
+    };
+
+    struct Particle {
+        Vector position;
+        Vector velocity;
+        Vector acceleration;
+        Vector linear_acc_force;
+        Vector damping_force;
+        double density;
+        double pressure;
+        double mass;
+        double speed_of_sound;
+        Matrix3x3 correction_tensor;
+    };
+}
