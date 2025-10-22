@@ -1,6 +1,6 @@
 # Compiler settings
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -O2
+CXXFLAGS = -std=c++26 -Wall -Wextra -O2
 INCLUDES = -Ilib
 
 # Directories

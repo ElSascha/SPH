@@ -103,5 +103,9 @@ namespace Data_structs {
         double speed_of_sound;
         double shepard;
         Matrix3x3 correction_tensor;
+
+        bool operator==(const Particle& other) const {
+            return position.x == other.position.x && position.y == other.position.y && position.z == other.position.z;
+        }
     };
 }
