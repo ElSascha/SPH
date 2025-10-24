@@ -85,3 +85,18 @@ void shepard_correction(std::vector<Particle>& particles, double h, int dim){
         }
     }
 }
+    
+void tensor_correction(std::vector<Particle>& particles, double h, int dim){
+    for(auto& pi : particles){
+        Matrix3x3 L_i;
+        for(auto& pj : particles){
+            Vector r = pi.position - pj.position;
+            L_i = L_i + ((r * pj.mass/pj.density).outer(gradW(pi.position, pj.position, h, dim)));
+        }
+        try{
+            pi.correction_tensor = L_i.invert();
+        } catch (const std::runtime_error& e){
+            pi.correction_tensor = Matrix3x3(); // set to zero matrix if not invertible
+        }
+    }
+}

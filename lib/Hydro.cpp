@@ -15,9 +15,17 @@ void compute_density(std::vector<Particle>& particles, double h, double dim, boo
     }
 }
 // Equation of State: Euler equation with lambda = 2
-void compute_acceleration(std::vector<Particle>& particles, double h, double dim, bool use_shepard) {
-    auto weight_grad = [&](const Particle pi, const Particle pj){
-        return use_shepard? gradW(pi.position, pj.position, h, dim) * pi.shepard : gradW(pi.position, pj.position, h, dim);
+void compute_acceleration(std::vector<Particle>& particles, double h, double dim, bool use_shepard, bool use_tensor_correction) {
+        auto weight_grad = [&](const Particle pi, const Particle pj){
+        if(use_tensor_correction == true){
+            return pi.correction_tensor * gradW(pi.position, pj.position, h, dim);
+        }
+        else if(use_shepard == true){
+            return gradW(pi.position, pj.position, h, dim) * pi.shepard;
+        }
+        else{
+            return gradW(pi.position, pj.position, h, dim);
+        }
     };
     for(auto& pi : particles){
         Vector acc_sum(0,0,0);
@@ -42,6 +50,6 @@ void compute_acceleration(std::vector<Particle>& particles, double h, double dim
     void compute_gravity(std::vector<Particle>& particles, double g) {
     for(auto& pi : particles){
         Vector gravity = Vector(0, -g, 0);
-        pi.acceleration = pi.acceleration + gravity;
+        pi.acceleration += gravity;
     }
 }
