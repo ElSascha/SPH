@@ -1,5 +1,5 @@
 #pragma once
-#include "Data_structs.cpp"
+#include "Data_structs.hpp"
 #include <vector>
 #include <cmath>
 #include <stdexcept>

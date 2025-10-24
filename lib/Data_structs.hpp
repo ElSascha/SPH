@@ -4,6 +4,8 @@
 
 namespace Data_structs {
 
+    // Forward declaration
+    struct Matrix3x3;
 
     struct Vector{
         double x,y,z;
@@ -27,14 +29,7 @@ namespace Data_structs {
             return std::sqrt(x * x + y * y + z * z);
         }
 
-        Matrix3x3 outer(const Vector& v) const {
-        
-             Matrix3x3 result;
-             result.m[0][0] = x * v.x; result.m[0][1] = x * v.y; result.m[0][2] = x * v.z;
-             result.m[1][0] = y * v.x; result.m[1][1] = y * v.y; result.m[1][2] = y * v.z;
-             result.m[2][0] = z * v.x; result.m[2][1] = z * v.y; result.m[2][2] = z * v.z;
-             return result;
-        }
+        Matrix3x3 outer(const Vector& v) const;
 
         Vector normalize() const {
             double n = norm();
@@ -55,14 +50,13 @@ namespace Data_structs {
             return *this;
         }
 
-    // elementwise subtraction
+        // elementwise subtraction
         Vector& operator-=(const Vector& rhs) {
             x -= rhs.x;
             y -= rhs.y;
             z -= rhs.z;
             return *this;
-    }
-
+        }
     };
 
     struct Matrix3x3 {
@@ -88,7 +82,6 @@ namespace Data_structs {
             return result;
         }
 
-    
         Matrix3x3 operator/(double scalar) const {
             Matrix3x3 result;
             for(int i=0;i<3;++i)
@@ -112,7 +105,7 @@ namespace Data_structs {
                 m[0][2]*(m[1][0]*m[2][1] - m[1][1]*m[2][0]);
         }
 
-        Matrix3x3 invert(){
+        Matrix3x3 invert() const {
             if(determinant() == 0){
                 throw std::runtime_error("Matrix is singular and cannot be inverted.");
             }
@@ -121,13 +114,24 @@ namespace Data_structs {
             inv.m[0][0] = (m[1][1]*m[2][2] - m[1][2]*m[2][1])/det; inv.m[0][1] = (m[0][2]*m[2][1] - m[0][1]*m[2][2])/det; inv.m[0][2] = (m[0][1]*m[1][2] - m[0][2]*m[1][1])/det;
             inv.m[1][0] = (m[1][2]*m[2][0] - m[1][0]*m[2][2])/det; inv.m[1][1] = (m[0][0]*m[2][2] - m[0][2]*m[2][0])/det; inv.m[1][2] = (m[0][2]*m[1][0] - m[0][0]*m[1][2])/det;
             inv.m[2][0] = (m[1][0]*m[2][1] - m[1][1]*m[2][0])/det; inv.m[2][1] = (m[0][1]*m[2][0] - m[0][0]*m[2][1])/det; inv.m[2][2] = (m[0][0]*m[1][1] - m[0][1]*m[1][0])/det;
+            return inv;
         }
     };
+
+    // Implementation of outer() now that Matrix3x3 is defined
+    inline Matrix3x3 Vector::outer(const Vector& v) const {
+        Matrix3x3 result;
+        result.m[0][0] = x * v.x; result.m[0][1] = x * v.y; result.m[0][2] = x * v.z;
+        result.m[1][0] = y * v.x; result.m[1][1] = y * v.y; result.m[1][2] = y * v.z;
+        result.m[2][0] = z * v.x; result.m[2][1] = z * v.y; result.m[2][2] = z * v.z;
+        return result;
+    }
 
     struct Particle {
         Vector position;
         Vector velocity;
         Vector acceleration;
+        Vector field; // for testing purposes
         double density;
         double pressure;
         double mass;

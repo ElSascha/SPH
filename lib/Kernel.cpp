@@ -70,33 +70,43 @@ Vector gradW(Vector pos_i, Vector pos_j, double h, int dim){
 }
 
 void shepard_correction(std::vector<Particle>& particles, double h, int dim){
-    for(auto& pi : particles){
-        double shepard_sum = 0.0;
-        for(auto& pj : particles){
-            Vector r = pi.position - pj.position;
-            double r_norm = r.norm();
-            shepard_sum += (pj.mass / pj.density) * W(r_norm, h, dim);
+    if(dim == 3){
+        for(auto& pi : particles){
+            double shepard_sum = 0.0;
+            for(auto& pj : particles){
+                Vector r = pi.position - pj.position;
+                double r_norm = r.norm();
+                shepard_sum += (pj.mass / pj.density) * W(r_norm, h, dim);
+            }
+            if(shepard_sum > 1e-12){
+                pi.shepard = 1.0/shepard_sum;
+            }
+            else{
+                pi.shepard = 1.0;
+            }
         }
-        if(shepard_sum > 1e-12){
-            pi.shepard = 1.0/shepard_sum;
-        }
-        else{
-            pi.shepard = 1.0;
-        }
+    }
+    else{
+        throw std::invalid_argument("Shepard correction only implemented for 3D.");
     }
 }
     
 void tensor_correction(std::vector<Particle>& particles, double h, int dim){
-    for(auto& pi : particles){
-        Matrix3x3 L_i;
-        for(auto& pj : particles){
-            Vector r = pi.position - pj.position;
-            L_i = L_i + ((r * pj.mass/pj.density).outer(gradW(pi.position, pj.position, h, dim)));
+    if(dim == 3){
+        for(auto& pi : particles){
+            Matrix3x3 L_i;
+            for(auto& pj : particles){
+                Vector r = pi.position - pj.position;
+                L_i = L_i + ((r * pj.mass/pj.density).outer(gradW(pi.position, pj.position, h, dim)));
+            }
+            try{
+                pi.correction_tensor = L_i.invert();
+            } catch (const std::runtime_error& e){
+                pi.correction_tensor = Matrix3x3(); // set to zero matrix if not invertible
+            }
         }
-        try{
-            pi.correction_tensor = L_i.invert();
-        } catch (const std::runtime_error& e){
-            pi.correction_tensor = Matrix3x3(); // set to zero matrix if not invertible
-        }
+    }
+    else{
+        throw std::invalid_argument("Tensor correction only implemented for 3D.");
     }
 }

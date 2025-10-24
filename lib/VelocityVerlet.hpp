@@ -1,6 +1,6 @@
 #pragma once
 #include <vector>
-#include "Data_structs.cpp"
+#include "Data_structs.hpp"
 #include "Kernel.hpp"
 #include "Hydro.hpp"
 using namespace Data_structs;
