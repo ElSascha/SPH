@@ -1,5 +1,4 @@
 #pragma once
-#include <vector>
 #include "Data_structs.hpp"
 #include "Kernel.hpp"
 #include "Hydro.hpp"

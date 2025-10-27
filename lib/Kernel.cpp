@@ -84,7 +84,7 @@ void shepard_correction(std::vector<Particle>& particles, double h, int dim){
             else{
                 pi.shepard = 1.0;
             }
-        }
+        } 
     }
     else{
         throw std::invalid_argument("Shepard correction only implemented for 3D.");
@@ -102,7 +102,7 @@ void tensor_correction(std::vector<Particle>& particles, double h, int dim){
             try{
                 pi.correction_tensor = L_i.invert();
             } catch (const std::runtime_error& e){
-                pi.correction_tensor = Matrix3x3(); // set to zero matrix if not invertible
+                pi.correction_tensor = id(); // set to identity matrix if not invertible
             }
         }
     }

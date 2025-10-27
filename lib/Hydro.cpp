@@ -40,17 +40,25 @@ void compute_acceleration(std::vector<Particle>& particles, double h, double dim
     }
     }
     
-    void compute_pressure(std::vector<Particle>& particles, double k, double gamma) {
+void compute_pressure(std::vector<Particle>& particles, double k, double gamma) {
     for(auto& pi : particles){
         pi.pressure = k * pow(pi.density, gamma);
     }
     }
 
     // for surface stability test
-    void compute_gravity(std::vector<Particle>& particles, double g) {
+void compute_gravity(std::vector<Particle>& particles, double g) {
     for(auto& pi : particles){
         Vector gravity = Vector(0, -g, 0);
         pi.acceleration += gravity;
+    }
+}
+
+
+// for sound speed calculation needed in time step calculation for CFL condition
+void compute_sound_speed(std::vector<Particle>& particles, double k, double gamma) {
+    for(auto& pi : particles){
+        pi.sound_speed = std::sqrt(gamma * pi.pressure / pi.density);
     }
 }
 
@@ -59,32 +67,12 @@ void compute_vector_field(std::vector<Particle>& particles, double h, double dim
             return use_shepard ?  pi.shepard * W(r, h, dim) :  W(r, h, dim);
         };
     for(auto& pi : particles){
-        Vector field_sum(0,0,0);
-        pi.field = Vector(0,0,0);
+        double field_sum = 0.0;
+        pi.field = 0.0;
         for(auto& pj : particles){
             double r_norm = (pi.position - pj.position).norm();
             field_sum +=  pj.field * weight(pi, r_norm) * pj.mass/pj.density;
         }
         pi.field = field_sum;
-    }
-}
-
-void compute_tensor_field(std::vector<Particle>& particles, double h, double dim, bool use_tensor_correction) {
-    auto weight_grad = [&](const Particle& pi, const Particle& pj){
-        if(use_tensor_correction == true){
-            return pi.correction_tensor * gradW(pi.position, pj.position, h, dim);
-        }
-        else{
-            return gradW(pi.position, pj.position, h, dim);
-        }
-    };
-    for(auto& pi : particles){
-        Matrix3x3 tensor_sum;
-        for(auto& pj : particles){
-            if(&(pi) == &(pj)) continue; // skip self-interaction
-            Vector gradW_ij = weight_grad(pi, pj);
-            tensor_sum = tensor_sum + (pj.field.outer(gradW_ij)) * (pj.mass/pj.density);
-        }
-        pi.correction_tensor = tensor_sum;
     }
 }

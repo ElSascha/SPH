@@ -1,2 +1,0 @@
-# Particle Initialization
-# Tiny cube of particles with initial velocity towards the center

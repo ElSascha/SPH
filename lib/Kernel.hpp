@@ -1,8 +1,6 @@
 #pragma once
 #include "Data_structs.hpp"
-#include <vector>
-#include <cmath>
-#include <stdexcept>
+
 using namespace Data_structs;
 
 double W(double r, double h, int dim);

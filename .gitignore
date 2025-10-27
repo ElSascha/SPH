@@ -1,0 +1,87 @@
+# Build artifacts
+build/
+*.o
+*.obj
+*.exe
+*.out
+*.app
+
+# Executables
+SPH_Simulation
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+*.egg-info/
+dist/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Data and output files
+*.csv
+*.dat
+*.txt
+*.log
+*.vtk
+*.vtu
+*.vtp
+output/
+results/
+data/
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.code-workspace
+
+# CMake (if you add it later)
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile.bak
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Thumbnails
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp

@@ -10,6 +10,7 @@ void velocity_verlet_step(std::vector<Particle>& particles, double dt, double h,
 
     compute_density(particles, h, dim, use_shepard);
     compute_pressure(particles, k, gamma);
+    compute_sound_speed(particles, k, gamma);
     compute_acceleration(particles, h, dim, use_shepard, use_tensor_correction);
     compute_gravity(particles, 9.81); // Example gravity value
    
@@ -24,6 +25,7 @@ void velocity_verlet_step(std::vector<Particle>& particles, double dt, double h,
     }   
     compute_density(particles, h, dim, use_shepard);
     compute_pressure(particles, k, gamma);
+    compute_sound_speed(particles, k, gamma);
     compute_acceleration(particles, h, dim, use_shepard, use_tensor_correction);
     compute_gravity(particles, 9.81); // Example gravity value
 

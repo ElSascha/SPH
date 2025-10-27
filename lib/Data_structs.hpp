@@ -1,6 +1,12 @@
 #pragma once
 #include <vector>
 #include <cmath>
+#include <stdexcept>
+#include <iostream>
+#include <iomanip>
+#include <array>
+#include <fstream>
+#include <string>
 
 namespace Data_structs {
 
@@ -127,12 +133,20 @@ namespace Data_structs {
         return result;
     }
 
+    static Matrix3x3 id() {
+        Matrix3x3 identity;
+        for(int i=0;i<3;++i)
+            identity.m[i][i] = 1;
+        return identity;
+    }
+
     struct Particle {
         Vector position;
         Vector velocity;
         Vector acceleration;
-        Vector field; // for testing purposes
+        double field; // for testing purposes
         double density;
+        double sound_speed;
         double pressure;
         double mass;
         double speed_of_sound;
