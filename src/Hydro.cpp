@@ -1,8 +1,13 @@
 #include "Hydro.hpp"
 
-void compute_density(std::vector<Particle>& particles, double h, double dim, bool use_shepard) {
+void compute_density(std::vector<Particle>& particles, double dim, bool use_shepard) {
+    
     auto weight = [&](const Particle& pi, double r){
-            return use_shepard ?  pi.shepard * W(r, h, dim) :  W(r, h, dim);
+            if(use_wendland){
+                return use_shepard ?  pi.shepard * wendland_W(r, pi.smoothing_length, dim) :  wendland_W(r, pi.smoothing_length, dim);
+            } else {
+                return use_shepard ?  pi.shepard * W(r, pi.smoothing_length, dim) :  W(r, pi.smoothing_length, dim);
+            }
         };
     for(auto& pi : particles){
         double density_sum = 0.0;
@@ -14,17 +19,31 @@ void compute_density(std::vector<Particle>& particles, double h, double dim, boo
         pi.density = density_sum;
     }
 }
+
+void density_continuity(std::vector<Particle>& particles, double dim, bool use_tensor_correction) {
+    auto weight_grad = [&](const Particles& pi, const Particle& pj){
+            return use_tensor_correction ? pi.correction_tensor * gradW(pi.position, pj.position, pi.smoothing_length, dim) : gradW(pi.position, pj.position, pi.smoothing_length, dim);
+        };
+    for(auto& pi : particles){
+        pi.drho_dt = 0.0;
+        for(auto& pj: particles){
+            pi.drho_dt += pj.mass/pj.density * (pi.velocity - pj.velocity).dot(weight_grad(pi, pj));
+        }
+        pi.drho_dt *= pi.density;
+    }
+}
+
 // Equation of State: Euler equation with lambda = 2
-void compute_acceleration(std::vector<Particle>& particles, double h, double dim, bool use_shepard, bool use_tensor_correction) {
+void compute_acceleration(std::vector<Particle>& particles, double dim, bool use_shepard, bool use_tensor_correction) {
         auto weight_grad = [&](const Particle& pi, const Particle& pj){
         if(use_tensor_correction == true){
-            return pi.correction_tensor * gradW(pi.position, pj.position, h, dim);
+            return pi.correction_tensor * gradW(pi.position, pj.position, pi.smoothing_length, dim);
         }
         else if(use_shepard == true){
-            return gradW(pi.position, pj.position, h, dim) * pi.shepard;
+            return gradW(pi.position, pj.position, pi.smoothing_length, dim) * pi.shepard;
         }
         else{
-            return gradW(pi.position, pj.position, h, dim);
+            return gradW(pi.position, pj.position, pi.smoothing_length, dim);
         }
     };
     for(auto& pi : particles){
@@ -46,33 +65,12 @@ void compute_pressure(std::vector<Particle>& particles, double k, double gamma) 
     }
     }
 
-    // for surface stability test
-void compute_gravity(std::vector<Particle>& particles, double g) {
-    for(auto& pi : particles){
-        Vector gravity = Vector(0, -g, 0);
-        pi.acceleration += gravity;
-    }
-}
-
-
 // for sound speed calculation needed in time step calculation for CFL condition
-void compute_sound_speed(std::vector<Particle>& particles, double k, double gamma) {
+void compute_sound_speed(std::vector<Particle>& particles, double gamma) {
     for(auto& pi : particles){
         pi.sound_speed = std::sqrt(gamma * pi.pressure / pi.density);
     }
 }
 
-void compute_vector_field(std::vector<Particle>& particles, double h, double dim, bool use_shepard) {
-    auto weight = [&](const Particle& pi, double r){
-            return use_shepard ?  pi.shepard * W(r, h, dim) :  W(r, h, dim);
-        };
-    for(auto& pi : particles){
-        double field_sum = 0.0;
-        pi.field = 0.0;
-        for(auto& pj : particles){
-            double r_norm = (pi.position - pj.position).norm();
-            field_sum +=  pj.field * weight(pi, r_norm) * pj.mass/pj.density;
-        }
-        pi.field = field_sum;
-    }
-}
+
+

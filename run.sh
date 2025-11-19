@@ -1,39 +1,23 @@
 #!/bin/bash
+#SBATCH --job-name=SPH_Simulation
+#SBATCH --output=output.log
+#SBATCH --error=error.log
+#SBATCH --time=01:00:00
+#SBATCH --partition compute
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=128G
 
-# Build and run script for SPH Simulation
-# Usage: ./run.sh [flags for the executable]
+# Load necessary modules
+module load lib/hdf5/1.12-gnu-11.4
 
-# Colors for output
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
-
-echo "Building SPH Simulation..."
-
-# Run make all
-make all
-
-# Check if build was successful
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}Build successful!${NC}"
-    echo "Running simulation with flags: $@"
-    echo "----------------------------------------"
-    
-    # Run the executable with all passed arguments
-    ./build/SPH_Simulation "$@"
-    
-    # Store exit code
-    EXIT_CODE=$?
-    
-    echo "----------------------------------------"
-    if [ $EXIT_CODE -eq 0 ]; then
-        echo -e "${GREEN}Simulation completed successfully!${NC}"
-    else
-        echo -e "${RED}Simulation exited with code: $EXIT_CODE${NC}"
-    fi
-    
-    exit $EXIT_CODE
-else
-    echo -e "${RED}Build failed!${NC}"
-    exit 1
+# Get HighFive if it doesn't exist
+if [ ! -d "lib/HighFive" ]; then
+    echo "Cloning HighFive library..."
+    git clone https://github.com/BlueBrain/HighFive.git lib/HighFive
 fi
+
+# Build the project
+make clean
+make -j16
+# Run the simulation
+srun  build/bin/SPH_Simulation -f input/cube_distribution.h5 -N 0

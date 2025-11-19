@@ -133,19 +133,21 @@ namespace Data_structs {
         return result;
     }
 
-    static Matrix3x3 id() {
-        Matrix3x3 identity;
-        for(int i=0;i<3;++i)
-            identity.m[i][i] = 1;
-        return identity;
+    inline Matrix3x3 id() {
+        Matrix3x3 result;
+        result.m[0][0] = 1.0; result.m[0][1] = 0.0; result.m[0][2] = 0.0;
+        result.m[1][0] = 0.0; result.m[1][1] = 1.0; result.m[1][2] = 0.0;
+        result.m[2][0] = 0.0; result.m[2][1] = 0.0; result.m[2][2] = 1.0;
+        return result;
     }
 
     struct Particle {
         Vector position;
         Vector velocity;
         Vector acceleration;
-        double field; // for testing purposes
         double density;
+        double drho_dt;
+        double smoothing_length;
         double sound_speed;
         double pressure;
         double mass;
