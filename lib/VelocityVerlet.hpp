@@ -4,4 +4,18 @@
 #include "Hydro.hpp"
 using namespace Data_structs;
 
-void velocity_verlet_step(std::vector<Particle>& particles, double dt, double dim, bool use_shepard,bool use_tensor_correction, double k, double gamma, bool use_wendland);
+void sph_leapfrog_step(
+    std::vector<Particle>& particles,
+    double dt,
+    double dim,
+    double k,
+    double gamma,
+    bool use_tensor_correction,
+    bool use_wendland);
+
+void density_update(
+    std::vector<Particle>& particles,
+    double dt,
+    double dim,
+    bool use_wendland,
+    bool use_tensor_correction);

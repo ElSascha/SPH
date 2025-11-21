@@ -54,8 +54,10 @@ std::vector<Particle> load_initial_particles(const std::string& filename) {
             // Initialize default physical values
             p.acceleration = Vector(0, 0, 0);
             p.density = 0.0;
+            p.rho_pred = 0.0;
+            p.drho_dt = 0.0;
             p.pressure = 0.0;
-            p.speed_of_sound = 0.0;
+            p.sound_speed = 0.0;
             p.shepard = 0.0;
 
             particles.push_back(p);
@@ -87,7 +89,7 @@ void write_output_particles(const char* filename, const std::vector<Particle>& p
     for (const auto& p : particles) {
         file << p.position.x << "," << p.position.y << "," << p.position.z << ","
              << p.velocity.x << "," << p.velocity.y << "," << p.velocity.z << ","
-             << p.mass << "," << p.smoothing_length << "," << p.density << "," << p.pressure << "," << p.speed_of_sound << "\n";
+             << p.mass << "," << p.smoothing_length << "," << p.density << "," << p.pressure << "," << p.sound_speed << "\n";
     }
     file.close();
 }
@@ -95,11 +97,11 @@ void write_output_particles(const char* filename, const std::vector<Particle>& p
 double max_sound_speed(const std::vector<Particle>& particles){
     double max_cs = 0.0;
     for(const auto& p : particles){
-        if(p.speed_of_sound > max_cs){
-            max_cs = p.speed_of_sound;
+        if(p.sound_speed > max_cs){
+            max_cs = p.sound_speed;
         }
     }
-    return max_cs;
+        return max_cs;
 }
 int main(int argc, char* argv[]){
     std::string filename;
@@ -180,48 +182,34 @@ int main(int argc, char* argv[]){
     double CFL = 0.3;
     double k = 1.0;
     double gamma = 1.4;
-    double dt = 0.0;
-    if (!particles.empty()) {
-        double max_cs = max_sound_speed(particles);
-        if (max_cs > 0) {
-            dt = CFL * particles[0].smoothing_length / max_cs;
-        }
-    }
-    if (dt == 0.0) {
-        // Fallback dt if sound speed is zero initially
-        dt = 1e-5; 
-        std::cout << "Warning: Max sound speed is zero, using a small default dt." << std::endl;
-    }
-
-
-    // do one calculation of hydro parameters to check C0 consistency
-
-   
     compute_density(particles, 3, false, use_wendland);
-    write_output_particles("output_initial_raw.csv", particles);
-    if(use_consistent_shepard) {   
-        consistent_shepard_interpolation(particles, 3, use_wendland);
-    }
-    if(use_shepard) {
+    if(use_shepard){
         shepard_correction(particles, 3, use_wendland);
+        compute_density(particles, 3, true, use_wendland);
     }
-    tensor_correction(particles, 3, use_wendland);
-    compute_density(particles, 3, use_shepard || use_consistent_shepard, use_wendland);
+    if(use_consistent_shepard){
+        consistent_shepard_interpolation(particles, 3, use_wendland);
+        compute_density(particles, 3, true, use_wendland);
+    }
+    if(use_tensor_correction){
+        tensor_correction(particles, 3, use_wendland);
+    }
     compute_pressure(particles, k, gamma);
     compute_sound_speed(particles, gamma);
-    compute_acceleration(particles, 3, use_shepard || use_consistent_shepard, use_tensor_correction);
-    write_output_particles("output_initial.csv", particles);
-
-
+    compute_acceleration(particles, 3, use_tensor_correction, use_wendland);
+    double dt = CFL * particles[0].smoothing_length / max_sound_speed(particles);
     // Main simulation loop
     for(int i = 0; i < steps; ++i) {
-        velocity_verlet_step(particles, dt, 3, use_shepard, use_tensor_correction, k, gamma, use_wendland);
         double max_cs = max_sound_speed(particles);
+        sph_leapfrog_step(particles, dt, 3, k, gamma, use_tensor_correction, use_wendland);
+        std::cout << "Completed step " << i+1 << "/" << steps << std::endl;
+        // Update time step based on CFL condition
         if (max_cs > 0) {
             dt = CFL * particles[0].smoothing_length / max_cs; // CFL condition update
+            std::cout << "Updated time step to " << dt << std::endl;
         }
     }
-
+    write_output_particles("output_particles.csv", particles);
     std::cout << "SPH Simulation Ended" << std::endl;
     return 0;
 }

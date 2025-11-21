@@ -147,11 +147,11 @@ namespace Data_structs {
         Vector acceleration;
         double density;
         double drho_dt;
+        double rho_pred;
         double smoothing_length;
         double sound_speed;
         double pressure;
         double mass;
-        double speed_of_sound;
         double shepard;
         Matrix3x3 correction_tensor;
 

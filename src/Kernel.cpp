@@ -1,6 +1,7 @@
 #include "Kernel.hpp"
 
 double W(double r, double h, int dim){
+
     double sigma = 0.0;
     if(dim == 1){
         sigma = (2.0/3.0) / h;
@@ -26,7 +27,7 @@ double W(double r, double h, int dim){
         result = 0.0;
     }
     else{
-        throw std::invalid_argument("Wrong kernel");
+        throw std::invalid_argument("Wrong kernel, negative distance. W");
     }
     return result;
 }
@@ -93,20 +94,25 @@ double derivW(double r, double h, int dim){
         result = 0;
     }
     else{
-        throw std::invalid_argument("Wrong kernel");
+        throw std::invalid_argument("Wrong kernel, negative distance. derivW");
     }
     return result;
 
 
 }
 
-Vector gradW(Vector pos_i, Vector pos_j, double h, int dim){
+Vector gradW(Vector pos_i, Vector pos_j, double h, int dim, bool use_wendland){
     Vector r = pos_i - pos_j;
     double r_norm = r.norm();
     if (r_norm == 0.0) {
         return Vector(0,0,0);
     }
-    return (r/r_norm)*derivW(r_norm,h,dim);
+    if(use_wendland){
+        return (r/r_norm)*wendland_W_deriv(r_norm,h,dim);
+    }
+    else{
+        return (r/r_norm)*derivW(r_norm,h,dim);
+    }
 }
 
 void shepard_correction(std::vector<Particle>& particles, int dim, bool use_wendland){
@@ -208,11 +214,8 @@ void tensor_correction(std::vector<Particle>& particles, int dim, bool use_wendl
             Matrix3x3 L_i;
             for(auto& pj : particles){
                 Vector r = pi.position - pj.position;
-                if(use_wendland){
-                    L_i = L_i + ((r * pj.mass/pj.density).outer(gradW(pi.position, pj.position, pj.smoothing_length, dim)));
-                } else {
-                    L_i = L_i + ((r * pj.mass/pj.density).outer(gradW(pi.position, pj.position, pj.smoothing_length, dim)));
-                }
+                L_i = L_i + ((r * pj.mass/pj.density).outer(gradW(pi.position, pj.position, pj.smoothing_length, dim, use_wendland)));
+                
             }
             try{
                 pi.correction_tensor = L_i.invert();
