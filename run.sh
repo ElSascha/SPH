@@ -20,4 +20,4 @@ fi
 make clean
 make -j16
 # Run the simulation
-srun  build/bin/SPH_Simulation -f input/cube_distribution.h5 -N 0
+srun  build/bin/SPH_Simulation -f input/cube_distribution.h5 -N 100 

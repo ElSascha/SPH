@@ -31,5 +31,6 @@
         "vector": "cpp",
         "cwchar": "cpp"
     },
-    "makefile.configureOnOpen": false
+    "makefile.configureOnOpen": false,
+    "C_Cpp.default.compilerPath": "/home/tu/tu_tu/tu_zxomp33/.conda/envs/miluphcuda/bin/g++"
 }

@@ -6,7 +6,7 @@
                 "${workspaceFolder}/**"
             ],
             "defines": [],
-            "compilerPath": "/usr/bin/clang++",
+            "compilerPath": "/home/tu/tu_tu/tu_zxomp33/.conda/envs/miluphcuda/bin/g++",
             "cStandard": "c23",
             "cppStandard": "c++26",
             "intelliSenseMode": "macos-gcc-x64"

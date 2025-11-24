@@ -27,9 +27,8 @@ void density_continuity(std::vector<Particle>& particles, double dim, bool use_t
     for(auto& pi : particles){
         pi.drho_dt = 0.0;
         for(auto& pj: particles){
-            pi.drho_dt += pj.mass * (pj.velocity - pi.velocity).dot(weight_grad(pi, pj));
+            pi.drho_dt += (pj.mass/pi.density) * (pj.velocity - pi.velocity).dot(weight_grad(pi, pj));
         }
-        pi.drho_dt = -1 * pi.drho_dt;
     }
 }
 

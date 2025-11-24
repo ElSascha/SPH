@@ -208,6 +208,7 @@ int main(int argc, char* argv[]){
             dt = CFL * particles[0].smoothing_length / max_cs; // CFL condition update
             std::cout << "Updated time step to " << dt << std::endl;
         }
+        write_output_particles(("data/output_particles_step_" + std::to_string(i+1) + ".csv").c_str(), particles);
     }
     write_output_particles("output_particles.csv", particles);
     std::cout << "SPH Simulation Ended" << std::endl;
