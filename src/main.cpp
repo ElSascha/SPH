@@ -105,11 +105,12 @@ double max_sound_speed(const std::vector<Particle>& particles){
 }
 int main(int argc, char* argv[]){
     std::string filename;
-    int steps = 100;
+    int total_time = 1;
+    double time_step = 0.01;
     bool use_shepard = false;
     bool use_tensor_correction = false;
     bool use_consistent_shepard = false;
-    bool use_wendland = false;
+    bool test = false;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -120,10 +121,10 @@ int main(int argc, char* argv[]){
                 std::cerr << "Error: -f option requires a filename." << std::endl;
                 return 1;
             }
-        } else if (arg == "-N") {
+        } else if (arg == "-total_time") {
             if (i + 1 < argc) {
                 try {
-                    steps = std::stoi(argv[++i]);
+                    total_time = std::stoi(argv[++i]);
                 } catch (const std::invalid_argument& e) {
                     std::cerr << "Error: Invalid number for -N option." << std::endl;
                     return 1;
@@ -132,27 +133,42 @@ int main(int argc, char* argv[]){
                 std::cerr << "Error: -N option requires a number." << std::endl;
                 return 1;
             }
-        } else if (arg == "-S") {
+        }else if(arg == "-time_step"){
+            if (i + 1 < argc) {
+                try {
+                    time_step = std::stod(argv[++i]);
+                } catch (const std::invalid_argument& e) {
+                    std::cerr << "Error: Invalid number for -time_step option." << std::endl;
+                    return 1;
+                }
+            } else {
+                std::cerr << "Error: -time_step option requires a number." << std::endl;
+                return 1;
+            }
+        }else if (arg == "-S") {
             use_shepard = true;
+            std::cout << "Shepard correction enabled." << std::endl;
         } else if (arg == "-T") {
             use_tensor_correction = true;
+            std::cout << "Tensor correction enabled." << std::endl;
         } else if (arg == "-CS") {
             // Consistent Shepard interpolation flag
             // This could be handled as needed in the simulation loop
             // For now, we just print a message
             std::cout << "Consistent Shepard interpolation will be applied." << std::endl;
             use_consistent_shepard = true;
-        } else if (arg == "-W") {
-            use_wendland = true;
+        } else if (arg == "-test"){
+            test = true;
+            std::cout << "Test mode enabled." << std::endl;
         }
          else if (arg == "-h" || arg == "--help") {
             std::cout << "Usage: " << argv[0] << " -f <filename> [-N <steps>] [-S] [-T]" << std::endl;
-            std::cout << "  -f <filename>    Input HDF5 file with initial particle data" << std::endl;
-            std::cout << "  -N <steps>       Number of simulation steps (default: 100)" << std::endl;
+            std::cout << "  -f <filename>    Input HDF5 file with initial particle data" << std::endl;;
             std::cout << "  -S               Use Shepard correction" << std::endl;
             std::cout << "  -T               Use Tensor correction" << std::endl;
             std::cout << "  -CS              Use Consistent Shepard interpolation" << std::endl;
-            std::cout << "  -W               Use Wendland kernel for density computation" << std::endl;
+            std::cout << "  -time_step <dt>  Time step size (default: 0.01)" << std::endl;
+            std::cout << "  -test            Run in test mode (output initial state and exit)" << std::endl;
             std::cout << "  -h, --help       Show this help message" << std::endl;
 
             return 0;
@@ -178,39 +194,68 @@ int main(int argc, char* argv[]){
         return 1;
     }
     
-    // Simulation parameters
-    double CFL = 0.3;
-    double k = 1.0;
-    double gamma = 1.4;
-    compute_density(particles, 3, false, use_wendland);
+    // Simulation parameters for Basalt Murnaghan EOS
+    double CFL = 0.3;               
+    double K_0 = 40e9; // Bulk modulus in Pascals
+    double K_0_deriv = 4.0; // Derivative of bulk modulus
+    double E = 50e9; // Youngs modulus in Pascals
+    double nu = 0.25; // Poisson's ratio
+    double G = E / (2.0 * (1.0 + nu)); // Shear modulus
+    double rho_0 = 2900.0; // Reference density in kg/m^3
+    compute_density(particles, 3, false);
     if(use_shepard){
-        shepard_correction(particles, 3, use_wendland);
-        compute_density(particles, 3, true, use_wendland);
+        shepard_correction(particles, 3);
+        compute_density(particles, 3, true);
     }
     if(use_consistent_shepard){
-        consistent_shepard_interpolation(particles, 3, use_wendland);
-        compute_density(particles, 3, true, use_wendland);
+        consistent_shepard_interpolation(particles, 3);
+        compute_density(particles, 3, true);
     }
     if(use_tensor_correction){
-        tensor_correction(particles, 3, use_wendland);
+        tensor_correction(particles, 3);
     }
-    compute_pressure(particles, k, gamma);
-    compute_sound_speed(particles, gamma);
-    compute_acceleration(particles, 3, use_tensor_correction, use_wendland);
-    double dt = CFL * particles[0].smoothing_length / max_sound_speed(particles);
+    compute_pressure(particles, K_0, K_0_deriv, rho_0);
+    compute_sound_speed(particles, K_0, K_0_deriv, rho_0);
+    compute_stress_rate(particles, G, 3, use_tensor_correction);
+    compute_acceleration(particles, 3, use_tensor_correction, 1.0, 2.0, 0.01);
+    if(test){
+        write_output_particles("output_particles.csv", particles);
+        std::cout << "Test output written. Exiting." << std::endl;
+        return 0;
+    }
+    double dt = 0;
     // Main simulation loop
-    for(int i = 0; i < steps; ++i) {
+    double current_time = 0.0;
+    double next_output_time = 0.0;
+    while(total_time > current_time){
         double max_cs = max_sound_speed(particles);
-        sph_leapfrog_step(particles, dt, 3, k, gamma, use_tensor_correction, use_wendland);
-        std::cout << "Completed step " << i+1 << "/" << steps << std::endl;
-        // Update time step based on CFL condition
         if (max_cs > 0) {
-            dt = CFL * particles[0].smoothing_length / max_cs; // CFL condition update
+            dt = CFL * particles[0].smoothing_length / max_cs;
             std::cout << "Updated time step to " << dt << std::endl;
         }
-        write_output_particles(("data/output_particles_step_" + std::to_string(i+1) + ".csv").c_str(), particles);
+        else {
+            std::cerr << "Warning: Maximum sound speed is zero. Time step not updated." << std::endl;
+        }
+        sph_leapfrog_step(
+            particles,
+            dt,
+            3,
+            K_0,
+            K_0_deriv,
+            rho_0,
+            G,
+            use_tensor_correction,
+            use_shepard);
+        std::cout << "Completed time: " << current_time + dt << " / " << total_time << std::endl;
+        // Update time step based on CFL condition
+        // write output when time_step is reached
+        current_time += dt;
+        if(current_time >= next_output_time) {
+            write_output_particles(("data/output_particles_step_" + std::to_string(static_cast<int>(next_output_time / time_step)) + ".csv").c_str(), particles);
+            next_output_time += time_step;
+        }
+
     }
-    write_output_particles("output_particles.csv", particles);
     std::cout << "SPH Simulation Ended" << std::endl;
     return 0;
 }

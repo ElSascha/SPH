@@ -1,7 +1,7 @@
 # Compiler settings
 CXX = g++
 CXXFLAGS = -std=c++23 -Wall -Wextra -O2
-INCLUDES = -Ilib -Ilib/HighFive/include
+INCLUDES = -Ilib -Ilib/HighFive/include -I$(CONDA_PREFIX)/include/eigen3
 LDFLAGS = -lhdf5_cpp -lhdf5
 
 # Directories

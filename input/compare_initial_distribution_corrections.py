@@ -2,13 +2,13 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-data_raw = pd.read_csv('../output_initial_raw_W.csv')
-data = pd.read_csv('../output_initial_S_W.csv')
-data_cs = pd.read_csv('../output_initial_CS_W.csv')
+data_raw = pd.read_csv('../output_particles_initial.csv')
+data = pd.read_csv('../output_particles_S.csv')
+data_cs = pd.read_csv('../output_particles_CS.csv')
 
 # Set the color bar range from 50 to 100
-vmin = 50
-vmax = 100
+vmin = 0.4
+vmax = 1
 
 # make 3 3d scatter plots of the initial distribution next to each other with density as color map
 fig = plt.figure(figsize=(18, 6))   

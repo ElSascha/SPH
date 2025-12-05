@@ -32,5 +32,5 @@ def create_cube_distribution(n_particles_per_side, size, filename, rho_0):
     print(f"Created cube distribution with {n_particles} particles in '{filename}'")
 
 if __name__ == "__main__":
-    create_cube_distribution(10, 5.0, r'cube_distribution.h5', 100.0)
+    create_cube_distribution(10, 5.0, r'cube_distribution.h5', 2900.0)
 

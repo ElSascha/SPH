@@ -16,8 +16,15 @@ if [ ! -d "lib/HighFive" ]; then
     git clone https://github.com/BlueBrain/HighFive.git lib/HighFive
 fi
 
-# Build the project
-make clean
-make -j16
+# Build the project only if it hasn't been built yet
+if [ ! -f "build/bin/SPH_Simulation" ]; then
+    echo "Building the project..."
+    mkdir -p build
+    cd build
+    cmake ..
+    make -j16
+    cd ..
+fi
+
 # Run the simulation
-srun  build/bin/SPH_Simulation -f input/cube_distribution.h5 -N 100 
+srun  build/bin/SPH_Simulation -f input/cube_distribution.h5 -total_time 10.0 -time_step 0.1 

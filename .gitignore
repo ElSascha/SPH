@@ -48,6 +48,7 @@ dist/
 *.log
 *.vtk
 *.vtu
+*.png
 *.vtp
 output/
 results/
