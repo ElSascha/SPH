@@ -32,3 +32,34 @@ for particle_file in particle_files:
         timestep = particle_file.split('_')[-1].split('.')[0]
         print(f'Timestep {timestep}: ΔL magnitude={delta_L_magnitude:.6e}, Relative Change={relative_change:.6e}')
 print('Angular momentum check complete.')
+
+# plot the conservation of angular momentum over time using relative change
+import matplotlib.pyplot as plt
+timesteps = []
+relative_changes = []
+for particle_file in particle_files:
+    data = np.loadtxt(os.path.join(data_dir, particle_file), delimiter=',', skiprows=1)
+    x = data[:, 0]
+    y = data[:, 1]
+    z = data[:, 2]
+    vx = data[:, 3]
+    vy = data[:, 4]
+    vz = data[:, 5]
+    mass = data[:, 6]
+    Lx = np.sum(mass * (y * vz - z * vy))
+    Ly = np.sum(mass * (z * vx - x * vz))
+    Lz = np.sum(mass * (x * vy - y * vx))
+    L = np.array([Lx, Ly, Lz])
+    delta_L = L - initial_angular_momentum
+    delta_L_magnitude = np.linalg.norm(delta_L)
+    timestep = int(particle_file.split('_')[-1].split('.')[0])
+    timesteps.append(timestep)
+    relative_changes.append(delta_L_magnitude / np.linalg.norm(initial_angular_momentum) if np.linalg.norm(initial_angular_momentum) != 0 else 0)
+plt.figure(figsize=(8,5))
+plt.plot(timesteps, relative_changes, marker='o')
+plt.xlabel('Timestep')
+plt.ylabel('Relative Change in ΔL')
+plt.title('Angular Momentum Conservation Over Time')
+plt.grid()
+plt.savefig('angular_momentum_conservation.png', dpi=300)
+plt.show()

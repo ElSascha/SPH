@@ -40,39 +40,57 @@ void compute_acceleration(std::vector<Particle>& particles, double dim, bool use
     for(size_t i = 0; i < N; ++i){
         for(size_t j = i + 1; j < N; ++j){  // nur j>i für Paarweise
             if(i == j) continue;
-            Vector gradW_ij = gradW(
+            
+            // Symmetrized kernel gradient for angular momentum conservation
+            // Use average of gradients computed with both smoothing lengths
+            Vector gradW_i = gradW(
                 particles[i].position,
                 particles[j].position,
                 particles[i].smoothing_length,
                 dim
             );
+            Vector gradW_j = gradW(
+                particles[i].position,
+                particles[j].position,
+                particles[j].smoothing_length,
+                dim
+            );
+            Vector gradW_ij = (gradW_i + gradW_j) * 0.5;
 
             // ---- Pressure + Artificial viscosity ----
             double Pi_ij = artificial_viscosity(particles[i], particles[j], alpha_visc, beta_visc, epsilon_visc);
 
-            double pressure_term = particles[j].mass * (particles[j].pressure / (pow(particles[j].density,2)) +
-                                    particles[i].pressure / (pow(particles[i].density,2)));
+            // Symmetric pressure term: P_i/rho_i^2 + P_j/rho_j^2
+            double pressure_coeff = particles[i].pressure / (particles[i].density * particles[i].density) +
+                                    particles[j].pressure / (particles[j].density * particles[j].density);
 
-            Vector f_pressure = -pressure_term * gradW_ij - particles[j].mass * Pi_ij * gradW_ij;
+            // Symmetric formulation: each particle uses its own mass
+            // a_i += -m_j * (P_i/rho_i^2 + P_j/rho_j^2 + Pi_ij) * gradW_ij
+            // a_j -= -m_i * (P_i/rho_i^2 + P_j/rho_j^2 + Pi_ij) * gradW_ij  (note: gradW_ji = -gradW_ij)
+            Vector f_pressure_i = -(pressure_coeff + Pi_ij) * gradW_ij * particles[j].mass;
+            Vector f_pressure_j = -(pressure_coeff + Pi_ij) * gradW_ij * particles[i].mass;
 
-            // Anti-symmetrisch: i bekommt +, j bekommt -
-            particles[i].acceleration += f_pressure;
-            particles[j].acceleration -= f_pressure;  // Newton's 3rd law
+            particles[i].acceleration += f_pressure_i;
+            particles[j].acceleration -= f_pressure_j;
 
             // ---- Solid stress divergence ----
-            Vector f_stress_i(0.0, 0.0, 0.0);
-
+            // Symmetric stress coefficient
+            double m_i = particles[i].mass;
+            double m_j = particles[j].mass;
+            
             for(int alpha = 0; alpha < 3; ++alpha){
+                double f_stress_alpha_i = 0.0;
+                double f_stress_alpha_j = 0.0;
                 for(int beta = 0; beta < 3; ++beta){
                     double Sij = particles[i].stress.m[alpha][beta] / (particles[i].density * particles[i].density) +
                                  particles[j].stress.m[alpha][beta] / (particles[j].density * particles[j].density);
 
-                    f_stress_i[alpha] += Sij * gradW_ij[beta] * particles[j].mass;
+                    f_stress_alpha_i += Sij * gradW_ij[beta] * m_j;
+                    f_stress_alpha_j += Sij * gradW_ij[beta] * m_i;
                 }
+                particles[i].acceleration[alpha] += f_stress_alpha_i;
+                particles[j].acceleration[alpha] -= f_stress_alpha_j;
             }
-
-            particles[i].acceleration += f_stress_i;
-            particles[j].acceleration -= f_stress_i;  // Newton's 3rd law
         }
     }
 }               

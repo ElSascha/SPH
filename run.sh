@@ -27,4 +27,4 @@ if [ ! -f "build/bin/SPH_Simulation" ]; then
 fi
 
 # Run the simulation
-srun  build/bin/SPH_Simulation -f input/cube_distribution.h5 -total_time 10.0 -time_step 0.1 -T
+srun  build/bin/SPH_Simulation -f input/cube_distribution.h5 -total_time 5.0 -time_step 0.1 -T

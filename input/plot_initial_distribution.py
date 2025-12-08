@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import h5py
 
 # Load h5 file
-dist = h5py.File('shear_patch_test.h5', 'r')
+dist = h5py.File('cube_distribution.h5', 'r')
 positions = dist['positions'][:]
 masses = dist['mass'][:]
 spacing = (positions.max(axis=0) - positions.min(axis=0)).max() / (len(np.unique(positions[:,0])) - 1)
