@@ -1,6 +1,9 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <algorithm>
+#include <limits>
+#include <cmath>
 #include <H5Cpp.h>
 #include "../lib/Data_structs.hpp"
 #include "../lib/VelocityVerlet.hpp"
@@ -101,7 +104,32 @@ double max_sound_speed(const std::vector<Particle>& particles){
             max_cs = p.sound_speed;
         }
     }
-        return max_cs;
+    return max_cs;
+}
+
+// Longitudinal wave speed for solids: c_L = sqrt(c_bulk^2 + 4/3 * G / rho)
+double max_longitudinal_speed(const std::vector<Particle>& particles, double G){
+    double max_c = 0.0;
+    for(const auto& p : particles){
+        if(p.density <= 0.0) continue;
+        double c_bulk = p.sound_speed;
+        double cL_sq = c_bulk * c_bulk + (4.0/3.0) * G / p.density;
+        if(cL_sq > 0.0){
+            double cL = std::sqrt(cL_sq);
+            if(cL > max_c) max_c = cL;
+        }
+    }
+    return max_c;
+}
+
+double min_smoothing_length(const std::vector<Particle>& particles){
+    double h_min = std::numeric_limits<double>::infinity();
+    for(const auto& p : particles){
+        if(p.smoothing_length > 0.0 && p.smoothing_length < h_min){
+            h_min = p.smoothing_length;
+        }
+    }
+    return h_min;
 }
 int main(int argc, char* argv[]){
     std::string filename;
@@ -201,7 +229,7 @@ int main(int argc, char* argv[]){
     double E = 50e9; // Youngs modulus in Pascals
     double nu = 0.25; // Poisson's ratio
     double G = E / (2.0 * (1.0 + nu)); // Shear modulus
-    double rho_0 = 2900.0; // Reference density in kg/m^3
+    
     compute_density(particles, 3, false);
     if(use_shepard){
         shepard_correction(particles, 3);
@@ -214,27 +242,50 @@ int main(int argc, char* argv[]){
     if(use_tensor_correction){
         tensor_correction(particles, 3);
     }
-    compute_pressure(particles, K_0, K_0_deriv, rho_0);
-    compute_sound_speed(particles, K_0, K_0_deriv, rho_0);
+    // Initialize rho_0 to current density to ensure zero pressure at start
+    for(auto& p : particles){
+        p.rho_0 = p.density;
+    }
+
+    compute_pressure(particles, K_0, K_0_deriv);
+    compute_sound_speed(particles, K_0, K_0_deriv);
     compute_stress_rate(particles, G, 3, use_tensor_correction);
-    compute_acceleration(particles, 3, use_tensor_correction, 1.0, 2.0, 0.01);
+    // Artificial viscosity parameters for basalt
+    double alpha_visc = 1.0;   // Linear viscosity (shear)
+    double beta_visc = 2.0;    // Quadratic viscosity (shock)
+    double epsilon_visc = 0.01; // Singularity prevention
+    compute_acceleration(particles, 3, use_tensor_correction, alpha_visc, beta_visc, epsilon_visc);
     if(test){
         write_output_particles("output_particles.csv", particles);
         std::cout << "Test output written. Exiting." << std::endl;
         return 0;
     }
     double dt = 0;
+    
     // Main simulation loop
     double current_time = 0.0;
     double next_output_time = 0.0;
     while(total_time > current_time){
-        double max_cs = max_sound_speed(particles);
-        if (max_cs > 0) {
-            dt = CFL * particles[0].smoothing_length / max_cs;
-            std::cout << "Updated time step to " << dt << std::endl;
+        double max_cL = max_longitudinal_speed(particles, G);
+        double h_min = min_smoothing_length(particles);
+        
+        // Find maximum velocity for viscosity CFL
+        double max_v = 0.0;
+        for(const auto& p : particles){
+            double v = p.velocity.norm();
+            if(v > max_v) max_v = v;
+        }
+
+        if (max_cL > 0.0 && std::isfinite(h_min)) {
+            // CFL condition including artificial viscosity:
+            // dt <= CFL * h / (c_L + alpha*c + beta*h*|div v|_max)
+            // Simplified: use max velocity as proxy for h*|div v|
+            double signal_speed = max_cL + alpha_visc * max_cL + beta_visc * max_v;
+            dt = CFL * h_min / signal_speed;
+            std::cout << "Updated time step to " << dt << " (h_min=" << h_min << ", c_L=" << max_cL << ")" << std::endl;
         }
         else {
-            std::cerr << "Warning: Maximum sound speed is zero. Time step not updated." << std::endl;
+            std::cerr << "Warning: Wave speed or smoothing length invalid. Time step not updated." << std::endl;
         }
         sph_leapfrog_step(
             particles,
@@ -242,10 +293,10 @@ int main(int argc, char* argv[]){
             3,
             K_0,
             K_0_deriv,
-            rho_0,
             G,
             use_tensor_correction,
-            use_shepard);
+            use_shepard,
+            use_consistent_shepard);
         std::cout << "Completed time: " << current_time + dt << " / " << total_time << std::endl;
         // Update time step based on CFL condition
         // write output when time_step is reached

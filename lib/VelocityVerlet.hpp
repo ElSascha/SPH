@@ -10,8 +10,8 @@ void sph_leapfrog_step(
     double dim,
     double K_0,
     double K_0_deriv,
-    double rho_0,
     double G,
     bool use_tensor_correction,
-    bool use_shepard);
+    bool use_shepard,
+    bool use_consistent_shepard);
 void integrate_density(std::vector<Particle>& particles, double dt, double dim);

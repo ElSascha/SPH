@@ -5,48 +5,50 @@ void sph_leapfrog_step(
     double dim,
     double K_0,
     double K_0_deriv,
-    double rho_0,
     double G,
     bool use_tensor_correction,
-    bool use_shepard)
+    bool use_shepard,
+    bool use_consistent_shepard)
 {
     // -------------------------
-    // 1. Half-step Kick: v(t) -> v(t + dt/2)
+    // 1. Half-step Kick (leapfrog): v -> v_half, then x -> x + v_half*dt
     // -------------------------
-    std::vector<Vector> old_velocity = std::vector<Vector>(particles.size()); 
     for(auto& p : particles){
-        old_velocity[&p - &particles[0]] = p.velocity; // store old velocity
-        p.position = p.position + p.velocity * 0.5 * dt;
+        // v_half
         p.velocity = p.velocity + p.acceleration * 0.5 * dt;
+        // x(t+dt) using v_half
+        p.position = p.position + p.velocity * dt;
     }
     
     // -------------------------
     // 4. Update fluid state
     // -------------------------
-    compute_density(particles, dim, use_shepard);
+    compute_density(particles, dim, use_shepard||use_consistent_shepard);
     if(use_tensor_correction){
         tensor_correction(particles, dim);
     }
-    compute_pressure(particles, K_0, K_0_deriv, rho_0);
-    compute_sound_speed(particles, K_0, K_0_deriv, rho_0);
+    compute_pressure(particles, K_0, K_0_deriv);
+    compute_sound_speed(particles, K_0, K_0_deriv);
 
-    // Update Stress (Hypoelastic)
+    // -------------------------
+    // 5. Update Stress (Hypoelastic) using current state
+    //    Stress must be updated before forces that depend on it.
+    // -------------------------
     compute_stress_rate(particles, G, dim, use_tensor_correction);
     for(auto& p : particles){
         p.stress = p.stress + p.dstress_dt * dt;
     }
 
     // -------------------------
-    // 5. Compute accelerations a(t+dt)
+    // 6. Compute accelerations a(t+dt)
     // -------------------------
     compute_acceleration(particles, dim, use_tensor_correction, 1.0, 2.0, 0.01);
 
     // -------------------------
-    // 6. Full-step Kick: v(t + dt/2) -> v(t + dt)
+    // 7. Full-step Kick: v_half -> v(t+dt)
     // -------------------------
     for(auto& p : particles){
-        p.velocity = old_velocity[&p - &particles[0]] + p.acceleration * dt;
-        p.position =  p.position + p.velocity * 0.5 * dt;
+        p.velocity = p.velocity + p.acceleration * 0.5 * dt;
     }
 }
 

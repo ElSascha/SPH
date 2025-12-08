@@ -7,8 +7,7 @@ Vector gradW(Vector pos_i, Vector pos_j, double h, int dim) {
     Vector r_vec = pos_i - pos_j;
     double r_norm = r_vec.norm();
     if (r_norm < 1e-12) return Vector(0, 0, 0);  // avoid division by zero
-    double factor = W_deriv(r_norm, h, dim) / r_norm;
-    return r_vec * factor;
+    return (r_vec/r_norm) * W_deriv(r_norm,h,dim);
 }
 
 

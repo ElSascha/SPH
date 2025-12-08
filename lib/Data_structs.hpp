@@ -242,6 +242,7 @@ namespace Data_structs {
         double density;
         double drho_dt;
         double rho_pred;
+        double rho_0;
         double smoothing_length;
         double sound_speed;
         double pressure;
