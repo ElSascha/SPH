@@ -302,7 +302,7 @@ int main(int argc, char* argv[]){
         // write output when time_step is reached
         current_time += dt;
         if(current_time >= next_output_time) {
-            write_output_particles(("data/output_particles_step_" + std::to_string(static_cast<int>(next_output_time / time_step)) + ".csv").c_str(), particles);
+            write_output_particles(("data_test/output_particles_step_" + std::to_string(static_cast<int>(next_output_time / time_step)) + ".csv").c_str(), particles);
             next_output_time += time_step;
         }
 

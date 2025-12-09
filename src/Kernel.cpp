@@ -1,6 +1,38 @@
 #include "Kernel.hpp"
 #include <Eigen/Dense>
 
+// Precomputed constants for 3D Wendland C6 kernel
+static constexpr double SIGMA_3D_FACTOR = 495.0 / (256.0 * M_PI);
+
+// Combined kernel + gradient computation (avoids redundant calculations)
+void W_and_gradW(double r, double h, const Vector& r_vec, 
+                 double& W_out, Vector& gradW_out) {
+    double q = r / h;
+    
+    if (q >= 2.0 || r < 1e-12) {
+        W_out = 0.0;
+        gradW_out = Vector(0, 0, 0);
+        return;
+    }
+    
+    double h3_inv = 1.0 / (h * h * h);
+    double sigma = SIGMA_3D_FACTOR * h3_inv;
+    
+    double q_half = q * 0.5;
+    double term = 1.0 - q_half;
+    double term5 = term * term * term * term * term;  // term^5
+    double term6 = term5 * term;                       // term^6
+    
+    // Wendland C6: W = sigma * (1 - q/2)^6 * (1 + 6*(q/2) + (35/3)*(q/2)^2)
+    double poly = 1.0 + 6.0 * q_half + (35.0/3.0) * q_half * q_half;
+    double dpoly = 3.0 + (35.0/3.0) * q_half;  // derivative: 6/2 + 2*(35/3)*(q/2)/2 = 3 + (35/3)*(q/2)
+    
+    W_out = sigma * term6 * poly;
+    
+    double dW_dr = sigma * (-3.0 * term5 * poly + term6 * dpoly) / h;
+    gradW_out = r_vec * (dW_dr / r);
+}
+
 
 // Gradient of the kernel (stable version)
 Vector gradW(Vector pos_i, Vector pos_j, double h, int dim) {
@@ -12,42 +44,41 @@ Vector gradW(Vector pos_i, Vector pos_j, double h, int dim) {
 
 
 double W(double r, double h, int dim) {
-    double sigma = 0.0;
     double q = r / h;
 
-    if (dim == 3) {
-        sigma = 495.0 / (256.0 * M_PI * h * h * h);
-    } else {
+    if (dim != 3) {
         throw std::invalid_argument("Wendland kernel only implemented for 3D.");
     }
+    
+    if (q >= 2.0) return 0.0;
 
-    if (q < 2.0) {
-        double term = 1.0 - q / 2.0;
-        return sigma * pow(term, 6.0) * (1.0 + 6.0 * (q / 2.0) + 35.0 / 3.0 * (q / 2.0) * (q / 2.0));
-    } else {
-        return 0.0;
-    }
+    double sigma = SIGMA_3D_FACTOR / (h * h * h);
+    double q_half = q * 0.5;
+    double term = 1.0 - q_half;
+    double term6 = term * term * term * term * term * term;
+    // Wendland C6: W = sigma * (1 - q/2)^6 * (1 + 6*(q/2) + (35/3)*(q/2)^2)
+    return sigma * term6 * (1.0 + 6.0 * q_half + (35.0/3.0) * q_half * q_half);
 }
 
 
 double W_deriv(double r, double h, int dim) {
-    double sigma = 0.0;
     double q = r / h;
 
-    if (dim == 3) {
-        sigma = 495.0 / (256.0 * M_PI * h * h * h);
-    } else {
+    if (dim != 3) {
         throw std::invalid_argument("Wendland kernel only implemented for 3D.");
     }
+    
+    if (q >= 2.0) return 0.0;
 
-    if (q < 2.0) {
-        double term = 1.0 - q / 2.0;
-        double poly = 1.0 + 6.0 * (q / 2.0) + 35.0 / 3.0 * (q / 2.0) * (q / 2.0);
-        double dpoly = 3.0 + 35.0 / 3.0 * (q / 2.0);
-        return sigma * (-3.0 * pow(term, 5.0) * poly + pow(term, 6.0) * dpoly) / h;
-    } else {
-        return 0.0;
-    }
+    double sigma = SIGMA_3D_FACTOR / (h * h * h);
+    double q_half = q * 0.5;
+    double term = 1.0 - q_half;
+    double term5 = term * term * term * term * term;
+    double term6 = term5 * term;
+    // Wendland C6: W = sigma * (1 - q/2)^6 * (1 + 6*(q/2) + (35/3)*(q/2)^2)
+    double poly = 1.0 + 6.0 * q_half + (35.0/3.0) * q_half * q_half;
+    double dpoly = 3.0 + (35.0/3.0) * q_half;
+    return sigma * (-3.0 * term5 * poly + term6 * dpoly) / h;
 }
 
 

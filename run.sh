@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=SPH_Simulation
-#SBATCH --output=output.log
+#SBATCH --output=output_cube_static.log
 #SBATCH --error=error.log
 #SBATCH --time=01:00:00
 #SBATCH --partition compute
@@ -27,4 +27,4 @@ if [ ! -f "build/bin/SPH_Simulation" ]; then
 fi
 
 # Run the simulation
-srun  build/bin/SPH_Simulation -f input/cube_distribution.h5 -total_time 5.0 -time_step 0.1 -T
+srun  build/bin/SPH_Simulation -f input/cube_distribution.h5 -total_time 3.0 -time_step 0.1 -T

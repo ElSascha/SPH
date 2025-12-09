@@ -7,8 +7,8 @@ data = pd.read_csv('../output_particles_S.csv')
 data_cs = pd.read_csv('../output_particles_CS.csv')
 
 # Set the color bar range from 50 to 100
-vmin = 0.4
-vmax = 1
+vmin = 1800
+vmax = 2940
 
 # make 3 3d scatter plots of the initial distribution next to each other with density as color map
 fig = plt.figure(figsize=(18, 6))   
@@ -38,12 +38,3 @@ ax3.set_zlabel('Z')
 
 plt.tight_layout()
 plt.savefig('initial_distribution_comparison.png', dpi=300)
-
-plt.figure(figsize=(8,5))
-plt.hist(data_raw['density'] - 100, bins=30, alpha=0.5, label='Uncorrected')
-plt.hist(data['density'] - 100, bins=30, alpha=0.5, label='Shepard Correction')
-plt.hist(data_cs['density'] - 100, bins=30, alpha=0.5, label='Consistent Shepard')
-plt.xlabel('Density deviation from 100')
-plt.ylabel('Number of particles')
-plt.legend()
-plt.savefig('density_deviation_histogram.png', dpi=300)

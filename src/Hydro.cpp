@@ -2,91 +2,127 @@
 
 
 void compute_density(std::vector<Particle>& particles, double dim, bool use_shepard) {
-    auto weight = [&](const Particle& pi, double r){
-        return use_shepard ?  pi.shepard * W(r, pi.smoothing_length, dim) :  W(r, pi.smoothing_length, dim);
-    };
     for(auto& pi : particles){
         double density_sum = 0.0;
+        const double h = pi.smoothing_length;
+        const double cutoff = 2.0 * h;
+        const double cutoff_sq = cutoff * cutoff;
+        
         for(auto& pj : particles){
-            double r_norm = (pi.position - pj.position).norm();
-            density_sum += pj.mass * weight(pi, r_norm);
+            Vector r_vec = pi.position - pj.position;
+            double r_sq = r_vec.x*r_vec.x + r_vec.y*r_vec.y + r_vec.z*r_vec.z;
+            
+            // Early exit: skip if outside kernel support (but NOT self-contribution at r=0!)
+            if(r_sq > cutoff_sq) continue;  // Changed from >= to > to include boundary
+            
+            double r = std::sqrt(r_sq);
+            double w = W(r, h, dim);
+            density_sum += pj.mass * w;
         }
-        pi.density = density_sum;
+        
+        if(use_shepard) {
+            pi.density = density_sum * pi.shepard;
+        } else {
+            pi.density = density_sum;
+        }
     }
 }
 
-void density_continuity(std::vector<Particle>& particles, double dim) {
+void density_continuity(std::vector<Particle>& particles, double /*dim*/) {
     for(auto& pi : particles){
         double drho_dt = 0.0;
+        const double h = pi.smoothing_length;
+        const double cutoff_sq = 4.0 * h * h;  // (2h)^2
+        
         for(auto& pj : particles){
             if(&pi == &pj) continue;
+            
+            Vector r_vec = pi.position - pj.position;
+            double r_sq = r_vec.x*r_vec.x + r_vec.y*r_vec.y + r_vec.z*r_vec.z;
+            if(r_sq > cutoff_sq) continue;
+            
+            double r = std::sqrt(r_sq);
+            double W_val;
+            Vector gradW_ij;
+            W_and_gradW(r, h, r_vec, W_val, gradW_ij);
+            
             Vector vji = pj.velocity - pi.velocity;
-            Vector gradW_ij = gradW(pi.position, pj.position, pi.smoothing_length, dim);
             drho_dt += pj.mass * vji.dot(gradW_ij);
         }
         pi.drho_dt = -drho_dt;
     }
 }
 
-void compute_acceleration(std::vector<Particle>& particles, double dim, bool use_tensor_correction,
+void compute_acceleration(std::vector<Particle>& particles, double /*dim*/, bool /*use_tensor_correction*/,
                           double alpha_visc, double beta_visc, double epsilon_visc)
 {
     size_t N = particles.size();
 
-    // Zuerst alle Beschleunigungen auf null setzen
+    // Reset all accelerations to zero
     for(auto& p : particles)
         p.acceleration = Vector(0.0, 0.0, 0.0);
 
     for(size_t i = 0; i < N; ++i){
-        for(size_t j = i + 1; j < N; ++j){  // nur j>i für Paarweise
-            if(i == j) continue;
+        const double h_i = particles[i].smoothing_length;
+        const double h_j_max = h_i * 1.5;  // Assume smoothing lengths don't vary too much
+        const double cutoff = 2.0 * std::max(h_i, h_j_max);
+        const double cutoff_sq = cutoff * cutoff;
+        
+        // Cache frequently accessed values for particle i
+        const Vector& pos_i = particles[i].position;
+        const double rho_i = particles[i].density;
+        const double rho_i_sq = rho_i * rho_i;
+        const double P_i_over_rho_sq = particles[i].pressure / rho_i_sq;
+        const double m_i = particles[i].mass;
+        
+        for(size_t j = i + 1; j < N; ++j){
+            // Compute distance squared first (cheap)
+            Vector r_vec = pos_i - particles[j].position;
+            double r_sq = r_vec.x*r_vec.x + r_vec.y*r_vec.y + r_vec.z*r_vec.z;
             
-            // Symmetrized kernel gradient for angular momentum conservation
-            // Use average of gradients computed with both smoothing lengths
-            Vector gradW_i = gradW(
-                particles[i].position,
-                particles[j].position,
-                particles[i].smoothing_length,
-                dim
-            );
-            Vector gradW_j = gradW(
-                particles[i].position,
-                particles[j].position,
-                particles[j].smoothing_length,
-                dim
-            );
+            // Early exit: skip if outside kernel support
+            if(r_sq > cutoff_sq) continue;
+            
+            double r = std::sqrt(r_sq);
+            const double h_j = particles[j].smoothing_length;
+            
+            // Compute symmetrized gradient using W_and_gradW
+            double W_i, W_j;
+            Vector gradW_i, gradW_j;
+            W_and_gradW(r, h_i, r_vec, W_i, gradW_i);
+            W_and_gradW(r, h_j, r_vec, W_j, gradW_j);
             Vector gradW_ij = (gradW_i + gradW_j) * 0.5;
 
             // ---- Pressure + Artificial viscosity ----
             double Pi_ij = artificial_viscosity(particles[i], particles[j], alpha_visc, beta_visc, epsilon_visc);
 
-            // Symmetric pressure term: P_i/rho_i^2 + P_j/rho_j^2
-            double pressure_coeff = particles[i].pressure / (particles[i].density * particles[i].density) +
-                                    particles[j].pressure / (particles[j].density * particles[j].density);
+            // Cache particle j values
+            const double rho_j = particles[j].density;
+            const double rho_j_sq = rho_j * rho_j;
+            const double m_j = particles[j].mass;
+            
+            double pressure_coeff = P_i_over_rho_sq + particles[j].pressure / rho_j_sq;
 
-            // Symmetric formulation: each particle uses its own mass
-            // a_i += -m_j * (P_i/rho_i^2 + P_j/rho_j^2 + Pi_ij) * gradW_ij
-            // a_j -= -m_i * (P_i/rho_i^2 + P_j/rho_j^2 + Pi_ij) * gradW_ij  (note: gradW_ji = -gradW_ij)
-            Vector f_pressure_i = -(pressure_coeff + Pi_ij) * gradW_ij * particles[j].mass;
-            Vector f_pressure_j = -(pressure_coeff + Pi_ij) * gradW_ij * particles[i].mass;
+            Vector f_pressure_i = -(pressure_coeff + Pi_ij) * gradW_ij * m_j;
+            Vector f_pressure_j = -(pressure_coeff + Pi_ij) * gradW_ij * m_i;
 
             particles[i].acceleration += f_pressure_i;
             particles[j].acceleration -= f_pressure_j;
 
             // ---- Solid stress divergence ----
-            // Symmetric stress coefficient
-            double m_i = particles[i].mass;
-            double m_j = particles[j].mass;
+            const Matrix3x3& stress_i = particles[i].stress;
+            const Matrix3x3& stress_j = particles[j].stress;
             
             for(int alpha = 0; alpha < 3; ++alpha){
                 double f_stress_alpha_i = 0.0;
                 double f_stress_alpha_j = 0.0;
                 for(int beta = 0; beta < 3; ++beta){
-                    double Sij = particles[i].stress.m[alpha][beta] / (particles[i].density * particles[i].density) +
-                                 particles[j].stress.m[alpha][beta] / (particles[j].density * particles[j].density);
+                    double Sij = stress_i.m[alpha][beta] / rho_i_sq +
+                                 stress_j.m[alpha][beta] / rho_j_sq;
 
-                    f_stress_alpha_i += Sij * gradW_ij[beta] * m_j;
-                    f_stress_alpha_j += Sij * gradW_ij[beta] * m_i;
+                    double gradW_beta = gradW_ij[beta];
+                    f_stress_alpha_i += Sij * gradW_beta * m_j;
+                    f_stress_alpha_j += Sij * gradW_beta * m_i;
                 }
                 particles[i].acceleration[alpha] += f_stress_alpha_i;
                 particles[j].acceleration[alpha] -= f_stress_alpha_j;
@@ -118,17 +154,29 @@ double artificial_viscosity(const Particle& pi, const Particle& pj, double alpha
 // Murnaghan EOS: P = K/(gamma) * [(rho/rho0)^gamma - 1]; c_s = sqrt(dP/drho)
 void compute_pressure(std::vector<Particle>& particles, double K_0, double K_0_deriv)
 {
+    const double K_ratio = K_0 / K_0_deriv;
     for(auto& p: particles){
-        p.pressure = K_0 / K_0_deriv * (pow(p.density/p.rho_0, K_0_deriv) - 1.0);
-        // Optionally clamp to prevent excessive tension (uncomment if needed):
-        // p.pressure = std::max(p.pressure, -0.1 * K_0);  // Limit tension to 10% of bulk modulus
+        double rho_ratio = p.density / p.rho_0;
+        // Use explicit multiplication for small integer exponents
+        double rho_pow = rho_ratio;
+        for(int k = 1; k < static_cast<int>(K_0_deriv); ++k) {
+            rho_pow *= rho_ratio;
+        }
+        p.pressure = K_ratio * (rho_pow - 1.0);
     }
 }
 
 void compute_sound_speed(std::vector<Particle>& particles, double K_0, double K_0_deriv)
 {
+    const double exp_minus_1 = K_0_deriv - 1.0;
     for(auto& p: particles){
-        p.sound_speed = std::sqrt(K_0 * pow(p.density/p.rho_0,K_0_deriv - 1) / p.density);
+        double rho_ratio = p.density / p.rho_0;
+        // Use explicit multiplication for integer exponent (K_0_deriv - 1 = 3 for basalt)
+        double rho_pow = 1.0;
+        for(int k = 0; k < static_cast<int>(exp_minus_1); ++k) {
+            rho_pow *= rho_ratio;
+        }
+        p.sound_speed = std::sqrt(K_0 * rho_pow / p.density);
     }
 }
 
@@ -153,24 +201,46 @@ double grad_dot_v(Particle current, std::vector<Particle>& neighbors, double dim
     return result;    
 }
 
-Matrix3x3 velocity_gradient_tensor(Particle current, std::vector<Particle>& neighbors, double dim, bool use_tensor_correction){
-    Matrix3x3 grad_v = Matrix3x3::zero(); // initialize zero matrix
+Matrix3x3 velocity_gradient_tensor(Particle current, std::vector<Particle>& neighbors, double /*dim*/, bool use_tensor_correction){
+    Matrix3x3 grad_v = Matrix3x3::zero();
+    const double h = current.smoothing_length;
+    const double cutoff_sq = 4.0 * h * h;
+    const Vector& pos_i = current.position;
+    
     if(use_tensor_correction){
-        // implement the following scheme: (v_j - v_i) ∇ psi_j(x_i)^T
-        // where ∇ psi_j(x_i) = m_j/rho_j * L_i ∇ W_ij
         for(auto& p : neighbors){
             if(&current == &p) continue;
+            
+            Vector r_vec = pos_i - p.position;
+            double r_sq = r_vec.x*r_vec.x + r_vec.y*r_vec.y + r_vec.z*r_vec.z;
+            if(r_sq > cutoff_sq) continue;
+            
+            double r = std::sqrt(r_sq);
+            double W_val;
+            Vector gradW_ij;
+            W_and_gradW(r, h, r_vec, W_val, gradW_ij);
+            
             Vector vij = p.velocity - current.velocity;
-            Vector grad_psi_j_xi = current.correction_tensor * gradW(current.position, p.position, current.smoothing_length, dim) * (p.mass / p.density);
-            grad_v =  grad_v + vij.outer(grad_psi_j_xi);
+            double vol_j = p.mass / p.density;
+            Vector grad_psi_j_xi = current.correction_tensor * gradW_ij * vol_j;
+            grad_v = grad_v + vij.outer(grad_psi_j_xi);
         }
     } else {
-        // Standard SPH gradient without tensor correction
         for(auto& p : neighbors){
             if(&current == &p) continue;
+            
+            Vector r_vec = pos_i - p.position;
+            double r_sq = r_vec.x*r_vec.x + r_vec.y*r_vec.y + r_vec.z*r_vec.z;
+            if(r_sq > cutoff_sq) continue;
+            
+            double r = std::sqrt(r_sq);
+            double W_val;
+            Vector gradW_ij;
+            W_and_gradW(r, h, r_vec, W_val, gradW_ij);
+            
             Vector vij = p.velocity - current.velocity;
-            Vector gradW_ij = gradW(current.position, p.position, current.smoothing_length, dim);
-            grad_v = grad_v + vij.outer(gradW_ij) * (p.mass / p.density);
+            double vol_j = p.mass / p.density;
+            grad_v = grad_v + vij.outer(gradW_ij) * vol_j;
         }
     }
     return grad_v;
