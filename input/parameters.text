@@ -1,0 +1,11 @@
+// Simulation parameters for Basalt Murnaghan EOS
+    double CFL = 0.3;               
+    double K_0 = 1e6; // Bulk modulus in Pascals
+    double K_0_deriv = 4.0; // Derivative of bulk modulus
+    double nu = 0.25; // Poisson's ratio
+    double E = 3*K_0*(1 - 2*nu); // Youngs modulus in Pascals
+    double G = E / (2.0 * (1.0 + nu)); // Shear modulus
+    // Artificial viscosity parameters for basalt
+    double alpha_visc = 1.0;   // Linear viscosity (shear)
+    double beta_visc = 2.0;    // Quadratic viscosity (shock)
+    double epsilon_visc = 0.01; // Singularity prevention

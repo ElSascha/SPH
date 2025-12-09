@@ -224,11 +224,15 @@ int main(int argc, char* argv[]){
     
     // Simulation parameters for Basalt Murnaghan EOS
     double CFL = 0.3;               
-    double K_0 = 40e9; // Bulk modulus in Pascals
+    double K_0 = 1e6; // Bulk modulus in Pascals
     double K_0_deriv = 4.0; // Derivative of bulk modulus
-    double E = 50e9; // Youngs modulus in Pascals
     double nu = 0.25; // Poisson's ratio
+    double E = 3*K_0*(1 - 2*nu); // Youngs modulus in Pascals
     double G = E / (2.0 * (1.0 + nu)); // Shear modulus
+    // Artificial viscosity parameters for basalt
+    double alpha_visc = 1.0;   // Linear viscosity (shear)
+    double beta_visc = 2.0;    // Quadratic viscosity (shock)
+    double epsilon_visc = 0.01; // Singularity prevention
     
     compute_density(particles, 3, false);
     if(use_shepard){
@@ -244,16 +248,12 @@ int main(int argc, char* argv[]){
     }
     // Initialize rho_0 to current density to ensure zero pressure at start
     for(auto& p : particles){
-        p.rho_0 = p.density;
+        p.rho_0 = 2900.0;
     }
 
     compute_pressure(particles, K_0, K_0_deriv);
     compute_sound_speed(particles, K_0, K_0_deriv);
     compute_stress_rate(particles, G, 3, use_tensor_correction);
-    // Artificial viscosity parameters for basalt
-    double alpha_visc = 1.0;   // Linear viscosity (shear)
-    double beta_visc = 2.0;    // Quadratic viscosity (shock)
-    double epsilon_visc = 0.01; // Singularity prevention
     compute_acceleration(particles, 3, use_tensor_correction, alpha_visc, beta_visc, epsilon_visc);
     if(test){
         write_output_particles("output_particles.csv", particles);
@@ -302,7 +302,7 @@ int main(int argc, char* argv[]){
         // write output when time_step is reached
         current_time += dt;
         if(current_time >= next_output_time) {
-            write_output_particles(("data_test/output_particles_step_" + std::to_string(static_cast<int>(next_output_time / time_step)) + ".csv").c_str(), particles);
+            write_output_particles(("data/output_particles_step_" + std::to_string(static_cast<int>(next_output_time / time_step)) + ".csv").c_str(), particles);
             next_output_time += time_step;
         }
 

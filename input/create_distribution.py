@@ -81,5 +81,5 @@ def shear_patch_test_2d(n, size, shear_rate, rho_0 ,filename):
     print(f"[OK] 2D shear patch test generated with {n*n} particles → {filename}")
 
 if __name__ == "__main__":
-    create_cube_distribution(10, 5.0, r'cube_distribution.h5', 2900.0)
+    create_cube_distribution(6, 5.0, r'cube_distribution.h5', 2900.0)
     #shear_patch_test_2d(30, 1.0, 1.0, 1.0, r'shear_patch_test.h5')

@@ -2,7 +2,7 @@
 #SBATCH --job-name=SPH_Simulation
 #SBATCH --output=output_cube_static.log
 #SBATCH --error=error.log
-#SBATCH --time=01:00:00
+#SBATCH --time=05:00:00
 #SBATCH --partition compute
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=128G
