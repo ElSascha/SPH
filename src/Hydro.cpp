@@ -28,32 +28,14 @@ void compute_density(std::vector<Particle>& particles, double dim, bool use_shep
     }
 }
 
-void density_continuity(std::vector<Particle>& particles, double /*dim*/) {
+void density_continuity(std::vector<Particle>& particles, double /*dim*/, bool use_tensor_correction) {
     for(auto& pi : particles){
-        double drho_dt = 0.0;
-        const double h = pi.smoothing_length;
-        const double cutoff_sq = 4.0 * h * h;  // (2h)^2
-        
-        for(auto& pj : particles){
-            if(&pi == &pj) continue;
-            
-            Vector r_vec = pi.position - pj.position;
-            double r_sq = r_vec.x*r_vec.x + r_vec.y*r_vec.y + r_vec.z*r_vec.z;
-            if(r_sq > cutoff_sq) continue;
-            
-            double r = std::sqrt(r_sq);
-            double W_val;
-            Vector gradW_ij;
-            W_and_gradW(r, h, r_vec, W_val, gradW_ij);
-            
-            Vector vji = pj.velocity - pi.velocity;
-            drho_dt += pj.mass * vji.dot(gradW_ij);
-        }
-        pi.drho_dt = -drho_dt;
+        double nabla_dot_v = grad_dot_v(pi, particles, 3, use_tensor_correction);
+        pi.drho_dt = -pi.density * nabla_dot_v;   
     }
 }
 
-void compute_acceleration(std::vector<Particle>& particles, double /*dim*/, bool /*use_tensor_correction*/,
+void compute_acceleration(std::vector<Particle>& particles, double /*dim*/, bool use_tensor_correction,
                           double alpha_visc, double beta_visc, double epsilon_visc)
 {
     size_t N = particles.size();
@@ -64,11 +46,10 @@ void compute_acceleration(std::vector<Particle>& particles, double /*dim*/, bool
 
     for(size_t i = 0; i < N; ++i){
         const double h_i = particles[i].smoothing_length;
-        const double h_j_max = h_i * 1.5;  // Assume smoothing lengths don't vary too much
+        const double h_j_max = h_i * 1.5;
         const double cutoff = 2.0 * std::max(h_i, h_j_max);
         const double cutoff_sq = cutoff * cutoff;
         
-        // Cache frequently accessed values for particle i
         const Vector& pos_i = particles[i].position;
         const double rho_i = particles[i].density;
         const double rho_i_sq = rho_i * rho_i;
@@ -76,64 +57,63 @@ void compute_acceleration(std::vector<Particle>& particles, double /*dim*/, bool
         const double m_i = particles[i].mass;
         
         for(size_t j = i + 1; j < N; ++j){
-            // Compute distance squared first (cheap)
             Vector r_vec = pos_i - particles[j].position;
             double r_sq = r_vec.x*r_vec.x + r_vec.y*r_vec.y + r_vec.z*r_vec.z;
             
-            // Early exit: skip if outside kernel support
             if(r_sq > cutoff_sq) continue;
             
             double r = std::sqrt(r_sq);
             const double h_j = particles[j].smoothing_length;
             
-            // Compute symmetrized gradient using W_and_gradW
+            // Compute symmetrized gradient
             double W_i, W_j;
             Vector gradW_i, gradW_j;
             W_and_gradW(r, h_i, r_vec, W_i, gradW_i);
             W_and_gradW(r, h_j, r_vec, W_j, gradW_j);
             Vector gradW_ij = (gradW_i + gradW_j) * 0.5;
 
-            // ---- Pressure + Artificial viscosity ----
             double Pi_ij = artificial_viscosity(particles[i], particles[j], alpha_visc, beta_visc, epsilon_visc);
 
-            // Cache particle j values
             const double rho_j = particles[j].density;
             const double rho_j_sq = rho_j * rho_j;
             const double m_j = particles[j].mass;
             
             double pressure_coeff = P_i_over_rho_sq + particles[j].pressure / rho_j_sq;
 
-            // Standard SPH momentum equation (pairwise symmetric):
-            // a_i += -m_j * (P_i/rho_i^2 + P_j/rho_j^2 + Pi_ij) * gradW_ij
-            // a_j += -m_i * (P_i/rho_i^2 + P_j/rho_j^2 + Pi_ij) * gradW_ji
-            // Since gradW_ji = -gradW_ij:
-            // a_j -= -m_i * (P_i/rho_i^2 + P_j/rho_j^2 + Pi_ij) * gradW_ij
             Vector f_ij = -(pressure_coeff + Pi_ij) * gradW_ij;
 
             particles[i].acceleration += f_ij * m_j;
             particles[j].acceleration -= f_ij * m_i;
 
-            // ---- Solid stress divergence ----
+                       // ---- Solid stress divergence ----
+            // For momentum conservation, use SYMMETRIZED corrected gradient
             const Matrix3x3& stress_i = particles[i].stress;
             const Matrix3x3& stress_j = particles[j].stress;
             
+            Vector corrected_gradW_ij;
+            if(use_tensor_correction){
+                // Symmetrize the corrected gradients to ensure Newton's 3rd law
+                Vector corrected_gradW_i = particles[i].correction_tensor * gradW_i;
+                Vector corrected_gradW_j = particles[j].correction_tensor * gradW_j;
+                corrected_gradW_ij = (corrected_gradW_i + corrected_gradW_j) * 0.5;
+            } else {
+                corrected_gradW_ij = gradW_ij;
+            }
+            
+            // Now use the same gradient for both particles (symmetric)
             for(int alpha = 0; alpha < 3; ++alpha){
-                double f_stress_alpha_i = 0.0;
-                double f_stress_alpha_j = 0.0;
+                double f_stress_alpha = 0.0;
                 for(int beta = 0; beta < 3; ++beta){
                     double Sij = stress_i.m[alpha][beta] / rho_i_sq +
                                  stress_j.m[alpha][beta] / rho_j_sq;
-
-                    double gradW_beta = gradW_ij[beta];
-                    f_stress_alpha_i += Sij * gradW_beta * m_j;
-                    f_stress_alpha_j += Sij * gradW_beta * m_i;
+                    f_stress_alpha += Sij * corrected_gradW_ij[beta];
                 }
-                particles[i].acceleration[alpha] += f_stress_alpha_i;
-                particles[j].acceleration[alpha] -= f_stress_alpha_j;
+                particles[i].acceleration[alpha] += f_stress_alpha * m_j;
+                particles[j].acceleration[alpha] -= f_stress_alpha * m_i;  // Equal and opposite
             }
         }
     }
-}               
+}
 
 double artificial_viscosity(const Particle& pi, const Particle& pj, double alpha, double beta, double epsilon) {
     Vector rij = pi.position - pj.position;
@@ -191,18 +171,50 @@ double compute_shear_modulus(double E, double nu){
 
 
 
-double grad_dot_v(Particle current, std::vector<Particle>& neighbors, double dim, bool use_tensor_correction){
-    if(use_tensor_correction){
-        return 0.0; // placeholder
-    }
+double grad_dot_v(Particle current, std::vector<Particle>& neighbors, double /*dim*/, bool use_tensor_correction){
+    const double h = current.smoothing_length;
+    const double cutoff_sq = 4.0 * h * h;
+    const Vector& pos_i = current.position;
+    
     double result = 0.0;
-    for(auto& p : neighbors){
-        if(&current == &p) continue;
-        Vector vij = p.velocity - current.velocity;
-        Vector gradW_ij = gradW(current.position, p.position, current.smoothing_length, dim);
-        result += p.mass / p.density * vij.dot(gradW_ij);
+    
+    if(use_tensor_correction){
+        for(auto& p : neighbors){
+            if(&current == &p) continue;
+            
+            Vector r_vec = pos_i - p.position;
+            double r_sq = r_vec.x*r_vec.x + r_vec.y*r_vec.y + r_vec.z*r_vec.z;
+            if(r_sq > cutoff_sq) continue;
+            
+            double r = std::sqrt(r_sq);
+            double W_val;
+            Vector gradW_ij;
+            W_and_gradW(r, h, r_vec, W_val, gradW_ij);
+            
+            Vector vij = p.velocity - current.velocity;
+            double vol_j = p.mass / p.density;
+            Vector grad_psi_j_xi = current.correction_tensor * gradW_ij * vol_j;
+            result += vij.dot(grad_psi_j_xi);
+        }
+    } else {
+        for(auto& p : neighbors){
+            if(&current == &p) continue;
+            
+            Vector r_vec = pos_i - p.position;
+            double r_sq = r_vec.x*r_vec.x + r_vec.y*r_vec.y + r_vec.z*r_vec.z;
+            if(r_sq > cutoff_sq) continue;
+            
+            double r = std::sqrt(r_sq);
+            double W_val;
+            Vector gradW_ij;
+            W_and_gradW(r, h, r_vec, W_val, gradW_ij);
+            
+            Vector vij = p.velocity - current.velocity;
+            double vol_j = p.mass / p.density;
+            result += vij.dot(gradW_ij) * vol_j;
+        }
     }
-    return result;    
+    return result;
 }
 
 Matrix3x3 velocity_gradient_tensor(Particle current, std::vector<Particle>& neighbors, double /*dim*/, bool use_tensor_correction){

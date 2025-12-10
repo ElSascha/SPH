@@ -139,6 +139,7 @@ int main(int argc, char* argv[]){
     bool use_tensor_correction = false;
     bool use_consistent_shepard = false;
     bool test = false;
+    bool integrate_density = false;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -188,7 +189,14 @@ int main(int argc, char* argv[]){
         } else if (arg == "-test"){
             test = true;
             std::cout << "Test mode enabled." << std::endl;
+        } else if (arg == "-integrate_density"){
+            // Integrate density flag
+            // This could be handled as needed in the simulation loop
+            // For now, we just print a message
+            std::cout << "Density will be integrated over time." << std::endl;
+            integrate_density = true;
         }
+
          else if (arg == "-h" || arg == "--help") {
             std::cout << "Usage: " << argv[0] << " -f <filename> [-N <steps>] [-S] [-T]" << std::endl;
             std::cout << "  -f <filename>    Input HDF5 file with initial particle data" << std::endl;;
@@ -224,7 +232,7 @@ int main(int argc, char* argv[]){
     
     // Simulation parameters for Basalt Murnaghan EOS
     double CFL = 0.3;               
-    double K_0 = 1e6; // Bulk modulus in Pascals
+    double K_0 = 40.0e9; // Bulk modulus in Pascals
     double K_0_deriv = 4.0; // Derivative of bulk modulus
     double nu = 0.25; // Poisson's ratio
     double E = 3*K_0*(1 - 2*nu); // Youngs modulus in Pascals
@@ -248,7 +256,7 @@ int main(int argc, char* argv[]){
     }
     // Initialize rho_0 to current density to ensure zero pressure at start
     for(auto& p : particles){
-        p.rho_0 = 2900.0;
+        p.rho_0 = p.density;
     }
 
     compute_pressure(particles, K_0, K_0_deriv);
@@ -294,9 +302,13 @@ int main(int argc, char* argv[]){
             K_0,
             K_0_deriv,
             G,
+            alpha_visc,
+            beta_visc,
+            epsilon_visc,
             use_tensor_correction,
             use_shepard,
-            use_consistent_shepard);
+            use_consistent_shepard,
+            integrate_density);
         std::cout << "Completed time: " << current_time + dt << " / " << total_time << std::endl;
         // Update time step based on CFL condition
         // write output when time_step is reached

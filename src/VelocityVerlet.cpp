@@ -6,9 +6,13 @@ void sph_leapfrog_step(
     double K_0,
     double K_0_deriv,
     double G,
+    double alpha_visc,
+    double beta_visc,
+    double epsilon_visc,
     bool use_tensor_correction,
     bool use_shepard,
-    bool use_consistent_shepard)
+    bool use_consistent_shepard,
+    bool integrate_density)
 {
     // -------------------------
     // 1. Half-step Kick (leapfrog): v -> v_half, then x -> x + v_half*dt
@@ -23,9 +27,25 @@ void sph_leapfrog_step(
     // -------------------------
     // 4. Update fluid state
     // -------------------------
-    compute_density(particles, dim, use_shepard||use_consistent_shepard);
+    if(use_shepard){
+        shepard_correction(particles, dim);
+    }
+    if(use_consistent_shepard){
+        consistent_shepard_interpolation(particles, dim);
+    }
     if(use_tensor_correction){
         tensor_correction(particles, dim);
+    }
+    if(integrate_density){
+        // Leapfrod density update
+        density_continuity(particles, dim, use_tensor_correction);
+        for(auto& p : particles){
+            p.density = p.density + p.drho_dt * dt;
+        }
+    }
+    else {
+        // Recompute density from positions
+        compute_density(particles, dim, use_shepard||use_consistent_shepard);
     }
     compute_pressure(particles, K_0, K_0_deriv);
     compute_sound_speed(particles, K_0, K_0_deriv);
@@ -42,7 +62,7 @@ void sph_leapfrog_step(
     // -------------------------
     // 6. Compute accelerations a(t+dt)
     // -------------------------
-    compute_acceleration(particles, dim, use_tensor_correction, 1.0, 2.0, 0.01);
+    compute_acceleration(particles, dim, use_tensor_correction, alpha_visc, beta_visc, epsilon_visc);
 
     // -------------------------
     // 7. Full-step Kick: v_half -> v(t+dt)
@@ -52,27 +72,3 @@ void sph_leapfrog_step(
     }
 }
 
-void integrate_density(std::vector<Particle>& particles, double dt, double dim)
-{
-    // ------ 1) Compute drho_dt(t) ------ 
-    density_continuity(particles, dim);
-
-    std::vector<double> drho_dt_old(particles.size());
-    std::vector<double> rho_old(particles.size());
-
-    for (size_t i = 0; i < particles.size(); ++i) {
-        rho_old[i] = particles[i].density;
-        drho_dt_old[i] = particles[i].drho_dt;
-        particles[i].density = rho_old[i] + dt * drho_dt_old[i];   // predictor
-    }
-
-    // ------ 2) drho_dt at predicted state ------
-    density_continuity(particles, dim);
-
-    // ------ 3) Corrector step ------
-    for (size_t i = 0; i < particles.size(); ++i) {
-        particles[i].density =
-            rho_old[i] + 0.5 * dt * (drho_dt_old[i] + particles[i].drho_dt);
-    }
-
-}

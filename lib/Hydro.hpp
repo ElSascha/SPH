@@ -4,7 +4,7 @@
 using namespace Data_structs;
 
 void compute_density(std::vector<Particle>& particles, double dim, bool use_shepard);
-void density_continuity(std::vector<Particle>& particles, double dim);
+void density_continuity(std::vector<Particle>& particles, double dim, bool use_tensor_correction);
 void compute_acceleration(std::vector<Particle>& particles, double dim, bool use_tensor_correction,
                           double alpha_visc=1.0, double beta_visc=2.0, double epsilon_visc=0.01);
 double artificial_viscosity(const Particle& pi, const Particle& pj, double alpha, double beta, double epsilon);
