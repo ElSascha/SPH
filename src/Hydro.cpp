@@ -103,11 +103,15 @@ void compute_acceleration(std::vector<Particle>& particles, double /*dim*/, bool
             
             double pressure_coeff = P_i_over_rho_sq + particles[j].pressure / rho_j_sq;
 
-            Vector f_pressure_i = -(pressure_coeff + Pi_ij) * gradW_ij * m_j;
-            Vector f_pressure_j = -(pressure_coeff + Pi_ij) * gradW_ij * m_i;
+            // Standard SPH momentum equation (pairwise symmetric):
+            // a_i += -m_j * (P_i/rho_i^2 + P_j/rho_j^2 + Pi_ij) * gradW_ij
+            // a_j += -m_i * (P_i/rho_i^2 + P_j/rho_j^2 + Pi_ij) * gradW_ji
+            // Since gradW_ji = -gradW_ij:
+            // a_j -= -m_i * (P_i/rho_i^2 + P_j/rho_j^2 + Pi_ij) * gradW_ij
+            Vector f_ij = -(pressure_coeff + Pi_ij) * gradW_ij;
 
-            particles[i].acceleration += f_pressure_i;
-            particles[j].acceleration -= f_pressure_j;
+            particles[i].acceleration += f_ij * m_j;
+            particles[j].acceleration -= f_ij * m_i;
 
             // ---- Solid stress divergence ----
             const Matrix3x3& stress_i = particles[i].stress;
@@ -208,6 +212,7 @@ Matrix3x3 velocity_gradient_tensor(Particle current, std::vector<Particle>& neig
     const Vector& pos_i = current.position;
     
     if(use_tensor_correction){
+        //Difference formula
         for(auto& p : neighbors){
             if(&current == &p) continue;
             
@@ -225,6 +230,7 @@ Matrix3x3 velocity_gradient_tensor(Particle current, std::vector<Particle>& neig
             Vector grad_psi_j_xi = current.correction_tensor * gradW_ij * vol_j;
             grad_v = grad_v + vij.outer(grad_psi_j_xi);
         }
+       
     } else {
         for(auto& p : neighbors){
             if(&current == &p) continue;

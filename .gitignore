@@ -49,10 +49,12 @@ dist/
 *.vtk
 *.vtu
 *.png
+*.mp4
 *.vtp
 output/
 results/
 data/
+data_test/
 
 # IDE and Editor files
 .vscode/
