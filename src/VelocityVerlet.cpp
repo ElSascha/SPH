@@ -11,7 +11,6 @@ void sph_leapfrog_step(
     double epsilon_visc,
     bool use_tensor_correction,
     bool use_shepard,
-    bool use_consistent_shepard,
     bool integrate_density)
 {
     // -------------------------
@@ -27,15 +26,7 @@ void sph_leapfrog_step(
     // -------------------------
     // 4. Update fluid state
     // -------------------------
-    if(use_shepard){
-        shepard_correction(particles, dim);
-    }
-    if(use_consistent_shepard){
-        consistent_shepard_interpolation(particles, dim);
-    }
-    if(use_tensor_correction){
-        tensor_correction(particles, dim);
-    }
+     
     if(integrate_density){
         // Leapfrod density update
         density_continuity(particles, dim, use_tensor_correction);
@@ -45,7 +36,10 @@ void sph_leapfrog_step(
     }
     else {
         // Recompute density from positions
-        compute_density(particles, dim, use_shepard||use_consistent_shepard);
+        compute_density(particles, dim, use_shepard);
+    }
+   if(use_tensor_correction){
+        tensor_correction(particles, dim);
     }
     compute_pressure(particles, K_0, K_0_deriv);
     compute_sound_speed(particles, K_0, K_0_deriv);

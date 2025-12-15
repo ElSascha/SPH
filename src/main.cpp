@@ -232,33 +232,39 @@ int main(int argc, char* argv[]){
     
     // Simulation parameters for Basalt Murnaghan EOS
     double CFL = 0.3;               
-    double K_0 = 40.0e9; // Bulk modulus in Pascals
+    double K_0 = 26.7e3; // Bulk modulus in Pascals
     double K_0_deriv = 4.0; // Derivative of bulk modulus
     double nu = 0.25; // Poisson's ratio
     double E = 3*K_0*(1 - 2*nu); // Youngs modulus in Pascals
-    double G = E / (2.0 * (1.0 + nu)); // Shear modulus
+    double G = 22.7e3;//E / (2.0 * (1.0 + nu)); // Shear modulus
     // Artificial viscosity parameters for basalt
     double alpha_visc = 1.0;   // Linear viscosity (shear)
     double beta_visc = 2.0;    // Quadratic viscosity (shock)
     double epsilon_visc = 0.01; // Singularity prevention
-    
-    compute_density(particles, 3, false);
-    if(use_shepard){
-        shepard_correction(particles, 3);
-        compute_density(particles, 3, true);
+    // Initialize rho_0 to current density to ensure zero pressure at start
+    for(auto& p : particles){
+        p.rho_0 = 2700.0;
     }
-    if(use_consistent_shepard){
-        consistent_shepard_interpolation(particles, 3);
-        compute_density(particles, 3, true);
+    if(integrate_density){
+        for(auto& p : particles){
+           p.density = p.rho_0;
+        }
+    }
+    else{
+        compute_density(particles, 3, false);
+        if(use_shepard){
+            shepard_correction(particles, 3);
+            compute_density(particles, 3, true);
+        }
+        if(use_consistent_shepard){
+            consistent_shepard_interpolation(particles, 3);
+            compute_density(particles, 3, true);
+        }
     }
     if(use_tensor_correction){
         tensor_correction(particles, 3);
     }
-    // Initialize rho_0 to current density to ensure zero pressure at start
-    for(auto& p : particles){
-        p.rho_0 = p.density;
-    }
-
+    
     compute_pressure(particles, K_0, K_0_deriv);
     compute_sound_speed(particles, K_0, K_0_deriv);
     compute_stress_rate(particles, G, 3, use_tensor_correction);
@@ -307,7 +313,6 @@ int main(int argc, char* argv[]){
             epsilon_visc,
             use_tensor_correction,
             use_shepard,
-            use_consistent_shepard,
             integrate_density);
         std::cout << "Completed time: " << current_time + dt << " / " << total_time << std::endl;
         // Update time step based on CFL condition

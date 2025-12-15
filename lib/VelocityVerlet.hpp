@@ -16,6 +16,5 @@ void sph_leapfrog_step(
     double epsilon_visc,
     bool use_tensor_correction,
     bool use_shepard,
-    bool use_consistent_shepard,
     bool integrate_density
     );

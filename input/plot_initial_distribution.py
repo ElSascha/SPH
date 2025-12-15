@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import h5py
 
 # Load h5 file
-dist = h5py.File('cube_distribution.h5', 'r')
+dist = h5py.File('stable_ball.h5', 'r')
 positions = dist['positions'][:]
 masses = dist['mass'][:]
 spacing = (positions.max(axis=0) - positions.min(axis=0)).max() / (len(np.unique(positions[:,0])) - 1)
@@ -13,6 +13,9 @@ fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
 sc = ax.scatter(positions[:,0], positions[:,1], positions[:,2], c=density, s=40, cmap='viridis')
 ax.set_title(f'Particle Distribution')
+ax.set_xlim(-1,1)
+ax.set_ylim(-1,1)
+ax.set_zlim(-1,1)
 plt.colorbar(sc, label='Density')
 
 ax.set_xlabel('X')

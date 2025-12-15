@@ -23,7 +23,7 @@ void W_and_gradW(double r, double h, const Vector& r_vec,
     double term5 = term * term * term * term * term;  // term^5
     double term6 = term5 * term;                       // term^6
     
-    // Wendland C6: W = sigma * (1 - q/2)^6 * (1 + 6*(q/2) + (35/3)*(q/2)^2)
+    // Wendland C4: W = sigma * (1 - q/2)^6 * (1 + 6*(q/2) + (35/3)*(q/2)^2)
     double poly = 1.0 + 6.0 * q_half + (35.0/3.0) * q_half * q_half;
     double dpoly = 3.0 + (35.0/3.0) * q_half;  // derivative: 6/2 + 2*(35/3)*(q/2)/2 = 3 + (35/3)*(q/2)
     
@@ -199,9 +199,9 @@ void tensor_correction(std::vector<Particle>& particles, int dim) {
         Eigen::Matrix3d Sinv = Eigen::Matrix3d::Zero();
         for (int k = 0; k < 3; ++k) {
             if (S(k) > epsilon) {
-                Sinv(k, k) = 1.0 / S(k);
+                Sinv(k, k) = 1.0 / (S(k)); 
             } else {
-                Sinv(k, k) = 1.0;  // uncorrected direction
+                Sinv(k, k) = 1.0;  // Set small singular values to 1 to avoid instability
             }
         }
 

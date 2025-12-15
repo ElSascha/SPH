@@ -23,7 +23,7 @@ def create_cube_distribution(n_particles_per_side, size, filename, rho_0):
     center_x = coords.mean()
     center_y = coords.mean()
     
-    omega = 1.0  # Drehgeschwindigkeit
+    omega = 0.5  # Drehgeschwindigkeit
     for i in range(n_particles):
         dx = positions[i,0] - center_x
         dy = positions[i,1] - center_y

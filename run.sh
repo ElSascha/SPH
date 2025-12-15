@@ -1,30 +1,9 @@
 #!/bin/bash
-#SBATCH --job-name=SPH_Simulation
-#SBATCH --output=output_cube_static.log
-#SBATCH --error=error.log
-#SBATCH --time=05:00:00
-#SBATCH --partition compute
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=128G
-
-# Load necessary modules
-module load lib/hdf5/1.12-gnu-11.4
-
-# Get HighFive if it doesn't exist
-if [ ! -d "lib/HighFive" ]; then
-    echo "Cloning HighFive library..."
-    git clone https://github.com/BlueBrain/HighFive.git lib/HighFive
-fi
-
-# Build the project only if it hasn't been built yet
-if [ ! -f "build/bin/SPH_Simulation" ]; then
-    echo "Building the project..."
-    mkdir -p build
-    cd build
-    cmake ..
-    make -j16
-    cd ..
-fi
-
-# Run the simulation
-srun  build/bin/SPH_Simulation -f input/cube_distribution.h5 -total_time 3.0 -time_step 0.1 -T
+# Start an interactive allocation with srun. Options use backslash continuations
+# so the command is easy to read and remains a single logical command.
+srun --export=ALL \
+     --time=14-00:00:00 \
+     --mem-per-cpu=64G \
+     --job-name=Sascha_SPH_Simulation \
+     --partition=compute \
+     --pty /bin/bash

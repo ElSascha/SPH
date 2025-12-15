@@ -28,7 +28,7 @@ void compute_density(std::vector<Particle>& particles, double dim, bool use_shep
     }
 }
 
-void density_continuity(std::vector<Particle>& particles, double /*dim*/, bool use_tensor_correction) {
+void density_continuity(std::vector<Particle>& particles, double /*dim*/, bool use_tensor_correction){ 
     for(auto& pi : particles){
         double nabla_dot_v = grad_dot_v(pi, particles, 3, use_tensor_correction);
         pi.drho_dt = -pi.density * nabla_dot_v;   
@@ -46,15 +46,18 @@ void compute_acceleration(std::vector<Particle>& particles, double /*dim*/, bool
 
     for(size_t i = 0; i < N; ++i){
         const double h_i = particles[i].smoothing_length;
-        const double h_j_max = h_i * 1.5;
-        const double cutoff = 2.0 * std::max(h_i, h_j_max);
-        const double cutoff_sq = cutoff * cutoff;
-        
+        // Optimization: Pre-calculate constants for particle i
         const Vector& pos_i = particles[i].position;
         const double rho_i = particles[i].density;
         const double rho_i_sq = rho_i * rho_i;
-        const double P_i_over_rho_sq = particles[i].pressure / rho_i_sq;
+        const double P_i_term = particles[i].pressure / rho_i_sq;
+        const Matrix3x3 stress_i_term = particles[i].stress * (1.0 / rho_i_sq);
         const double m_i = particles[i].mass;
+
+        // Neighbor search parameters
+        const double h_j_max_est = h_i * 1.5; // Estimation for cutoff
+        const double cutoff = 2.0 * std::max(h_i, h_j_max_est);
+        const double cutoff_sq = cutoff * cutoff;
         
         for(size_t j = i + 1; j < N; ++j){
             Vector r_vec = pos_i - particles[j].position;
@@ -65,55 +68,71 @@ void compute_acceleration(std::vector<Particle>& particles, double /*dim*/, bool
             double r = std::sqrt(r_sq);
             const double h_j = particles[j].smoothing_length;
             
-            // Compute symmetrized gradient
+            // 1. Calculate Raw Gradient (Symmetrized Kernel)
             double W_i, W_j;
-            Vector gradW_i, gradW_j;
-            W_and_gradW(r, h_i, r_vec, W_i, gradW_i);
-            W_and_gradW(r, h_j, r_vec, W_j, gradW_j);
-            Vector gradW_ij = (gradW_i + gradW_j) * 0.5;
+            Vector gradW_raw_i, gradW_raw_j;
+            W_and_gradW(r, h_i, r_vec, W_i, gradW_raw_i);
+            W_and_gradW(r, h_j, r_vec, W_j, gradW_raw_j);
+            
+            // Standard SPH gradient of W_ij w.r.t x_i
+            Vector gradW_raw = (gradW_raw_i + gradW_raw_j) * 0.5;
 
-            double Pi_ij = artificial_viscosity(particles[i], particles[j], alpha_visc, beta_visc, epsilon_visc);
+            // 2. Apply Tensor Correction (KGC)
+            // If enabled, applying L_i to i's terms and L_j to j's terms
+            Vector gradW_i_term, gradW_j_term;
+            if (use_tensor_correction) {
+                gradW_i_term = particles[i].correction_tensor * gradW_raw;
+                gradW_j_term = particles[j].correction_tensor * gradW_raw;
+            } else {
+                gradW_i_term = gradW_raw;
+                gradW_j_term = gradW_raw;
+            }
 
+            // 3. Pressure & Viscosity Force (Symmetric)
             const double rho_j = particles[j].density;
             const double rho_j_sq = rho_j * rho_j;
             const double m_j = particles[j].mass;
             
-            double pressure_coeff = P_i_over_rho_sq + particles[j].pressure / rho_j_sq;
-
-            Vector f_ij = -(pressure_coeff + Pi_ij) * gradW_ij;
-
-            particles[i].acceleration += f_ij * m_j;
-            particles[j].acceleration -= f_ij * m_i;
-
-                       // ---- Solid stress divergence ----
-            // For momentum conservation, use SYMMETRIZED corrected gradient
-            const Matrix3x3& stress_i = particles[i].stress;
-            const Matrix3x3& stress_j = particles[j].stress;
+            double Pi_ij = artificial_viscosity(particles[i], particles[j], alpha_visc, beta_visc, epsilon_visc);
             
-            Vector corrected_gradW_ij;
-            if(use_tensor_correction){
-                // Symmetrize the corrected gradients to ensure Newton's 3rd law
-                Vector corrected_gradW_i = particles[i].correction_tensor * gradW_i;
-                Vector corrected_gradW_j = particles[j].correction_tensor * gradW_j;
-                corrected_gradW_ij = (corrected_gradW_i + corrected_gradW_j) * 0.5;
-            } else {
-                corrected_gradW_ij = gradW_ij;
-            }
+            // Distribute viscosity symmetrically (0.5 to each term)
+            double term_scalar_i = P_i_term + (0.5 * Pi_ij);
+            double term_scalar_j = (particles[j].pressure / rho_j_sq) + (0.5 * Pi_ij);
+
+            // Compute separate vectors to handle the different corrections
+            Vector force_vec_i = gradW_i_term * term_scalar_i;
+            Vector force_vec_j = gradW_j_term * term_scalar_j;
+
+            // Total Pressure Force F_ij (Notice negative sign for pressure gradient)
+            Vector f_pressure = (force_vec_i + force_vec_j) * (-1.0);
+
+            particles[i].acceleration += f_pressure * m_j;
+            particles[j].acceleration -= f_pressure * m_i;
+
+            // 4. Solid Stress Force (Symmetric)
+            const Matrix3x3 stress_j_term = particles[j].stress * (1.0 / rho_j_sq);
             
-            // Now use the same gradient for both particles (symmetric)
             for(int alpha = 0; alpha < 3; ++alpha){
-                double f_stress_alpha = 0.0;
+                double f_stress_scalar = 0.0;
+                
+                // Term from Particle i (uses L_i corrected gradient)
                 for(int beta = 0; beta < 3; ++beta){
-                    double Sij = stress_i.m[alpha][beta] / rho_i_sq +
-                                 stress_j.m[alpha][beta] / rho_j_sq;
-                    f_stress_alpha += Sij * corrected_gradW_ij[beta];
+                    f_stress_scalar += stress_i_term.m[alpha][beta] * gradW_i_term[beta];
                 }
-                particles[i].acceleration[alpha] += f_stress_alpha * m_j;
-                particles[j].acceleration[alpha] -= f_stress_alpha * m_i;  // Equal and opposite
+
+                // Term from Particle j (uses L_j corrected gradient)
+                for(int beta = 0; beta < 3; ++beta){
+                    f_stress_scalar += stress_j_term.m[alpha][beta] * gradW_j_term[beta];
+                }
+                
+                particles[i].acceleration[alpha] += f_stress_scalar * m_j;
+                particles[j].acceleration[alpha] -= f_stress_scalar * m_i; 
             }
         }
     }
 }
+
+
 
 double artificial_viscosity(const Particle& pi, const Particle& pj, double alpha, double beta, double epsilon) {
     Vector rij = pi.position - pj.position;
@@ -163,12 +182,6 @@ void compute_sound_speed(std::vector<Particle>& particles, double K_0, double K_
         p.sound_speed = std::sqrt(K_0 * rho_pow / p.density);
     }
 }
-
-// Solid mechanics specific functions 
-double compute_shear_modulus(double E, double nu){
-    return E / (2.0 * (1.0 + nu));
-}
-
 
 
 double grad_dot_v(Particle current, std::vector<Particle>& neighbors, double /*dim*/, bool use_tensor_correction){
